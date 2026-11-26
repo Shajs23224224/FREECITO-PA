@@ -4,6 +4,8 @@ import android.os.SystemClock
 import android.content.Context
 import com.omega.ai.persistence.CognitiveStore
 import com.omega.core.world.*
+import com.omega.core.reasoning.*
+import java.util.ArrayDeque
 import com.omega.core.neural.NeuralEngine
 import com.omega.core.agents.AgentBoard
 import com.omega.core.agents.Evidence
@@ -20,6 +22,9 @@ class NeuralSession(context:Context,scope:String?,sessionId:String) : AutoClosea
     private var lastWorldFrame=-1L
     private val engine=NeuralEngine()
     private val board=AgentBoard(engine)
+    private val reasoner=Reasoner()
+    private val availability=ArrayDeque<Boolean>()
+    private var previousPlan:String?=null
     private val worker=Executors.newSingleThreadExecutor()
     private val closed=AtomicBoolean(false)
     private val busy=AtomicBoolean(false)
@@ -72,8 +77,48 @@ class NeuralSession(context:Context,scope:String?,sessionId:String) : AutoClosea
                         evidence+=Evidence("evidence.A115",x[143],.5f,"spatial_hypothesis_store",now)
                         evidence+=Evidence("evidence.A120",1f,1f,"transaction_success",now)
                     }
+                    // Facts refer to availability, not truth of uncalibrated game labels.
+                    val facts=mutableListOf<Fact>()
+                    fun available(key:String, present:Boolean, source:String){
+                        facts+=Fact(key,if(present)Truth.TRUE else Truth.FALSE,1.0,source)
+                    }
+                    available("visual",s.tracks!=null,"vision_availability")
+                    available("text",s.text!=null,"ocr_availability")
+                    available("aligned_depth",s.tracks!=null && s.relativeDepth?.frameNs==s.tracks.frameNs,"frame_alignment")
+                    available("memory",memory!=null,"memory_scope")
+                    val rules=listOf(Rule(setOf("visual","aligned_depth"),"spatial_review"),Rule(setOf("visual","memory"),"recall_review"))
+                    val plans=listOf(
+                        Plan("spatial_review",listOf(Step("inspect_relative_geometry",setOf("spatial_review"),.9,.2,.25),Step("check_alignment",setOf("aligned_depth"),.8,.1,.15))),
+                        Plan("context_review",listOf(Step("inspect_visible",setOf("visual"),.75,.15,.2),Step("retrieve_context",setOf("recall_review"),.8,.15,.2))),
+                        Plan("text_review",listOf(Step("inspect_text_availability",setOf("text"),.65,.15,.2))),
+                        Plan("observe_more",listOf(Step("await_fresh_observation",emptySet(),.5,.1,.1)))
+                    )
+                    val result=reasoner.reason(facts,rules,plans,mapOf("spatial_data_available" to setOf("visual","aligned_depth","spatial_review"),"context_available" to setOf("visual","memory","recall_review")),previousPlan)
+                    val selected=result.selected
+                    previousPlan=selected?.id
+                    availability.addLast(s.tracks!=null);if(availability.size>64)availability.removeFirst()
+                    val estimate=reasoner.estimate(availability.toList())
+                    x[150]=result.alternatives.count{it.score!=null}/4f
+                    x[151]=estimate?.probability?.toFloat()?:0f
+                    x[152]=if(result.revised)1f else 0f
+                    x[153]=result.facts.values.count{it==Truth.CONFLICT}/result.facts.size.coerceAtLeast(1).toFloat()
+                    x[154]=(selected?.score?.toFloat()?:0f).coerceIn(0f,1f)
+                    evidence+=Evidence("evidence.A051",x[150],1f,"plan_evaluation",now)
+                    evidence+=Evidence("evidence.A063",x[154],.7f,"heuristic_plan_score",now)
+                    evidence+=Evidence("evidence.A074",x[151],.5f,"availability_estimate",now)
+                    evidence+=Evidence("evidence.A121",result.facts.values.count{it==Truth.TRUE}/result.facts.size.coerceAtLeast(1).toFloat(),1f,"deduction_status",now)
+                    evidence+=Evidence("evidence.A123",result.hypotheses.size/2f,1f,"hypothesis_count",now)
+                    evidence+=Evidence("evidence.A127",x[153],1f,"contradiction_count",now)
+                    evidence+=Evidence("evidence.A149",x[152],1f,"plan_revision",now)
+                    if(memory!=null && selected!=null){
+                        val wall=System.currentTimeMillis()
+                        memory.consolidate(listOf(
+                            Recall(MemoryKind.STRATEGIC,"observation_plan:$frame",selected.id+" proposed only; no execution",.5f,wall,"symbolic_reasoner"),
+                            Recall(MemoryKind.PROSPECTIVE,"pending_observation",selected.id+" not executed",.5f,wall,"symbolic_reasoner")
+                        ))
+                    }
                     val p=board.deliberate(frame,now,x,evidence,(0..15).toList(),4)
-                    if(!closed.get())message.set("Blackboard: ${p.proposals.size} roles · ${p.activeModules.size} módulos · ${p.selected.size} evidencias · $places firmas espaciales")
+                    if(!closed.get())message.set("Blackboard: ${p.proposals.size} roles · ${p.activeModules.size} módulos · ${p.selected.size} evidencias · $places firmas espaciales · plan: ${selected?.id?:"none"}")
                 }
             } catch(e:Exception){if(!closed.get())message.set("Inferencia no disponible")}
             finally {busy.set(false)}
