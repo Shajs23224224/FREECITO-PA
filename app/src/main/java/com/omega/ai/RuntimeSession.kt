@@ -5,19 +5,24 @@ import android.util.Log
 import com.omega.ai.persistence.SessionStore
 import com.omega.core.NativeEngine
 import com.omega.core.EngineStats
+import com.omega.vision.VisionEngine
+import com.omega.vision.VisionSnapshot
 import java.nio.ByteBuffer
 import java.util.UUID
 
-/** Process-local session owner. No actions or learning claims in v0.1.0. */
+/** Process-local session owner. Perception only; no actions or learning claims in v0.2.0. */
 object RuntimeSession {
     private lateinit var store: SessionStore
     private var engine: NativeEngine? = null
     private var id: String? = null
     private var message = "Sistema inactivo"
     private var capture = false
-    data class Status(val active: Boolean, val capturing: Boolean, val message: String, val stats: EngineStats?)
+    private lateinit var app: Context
+    private var vision: VisionEngine? = null
+    data class Status(val active: Boolean, val capturing: Boolean, val message: String, val stats: EngineStats?, val perception: VisionSnapshot?)
     @Synchronized fun initialize(context: Context) {
-        store = SessionStore(context.applicationContext)
+        app=context.applicationContext
+        store = SessionStore(app)
         runCatching { store.recover() }.onFailure { message = "Error de persistencia"; Log.e("OMEGA", "recover", it) }
     }
     @Synchronized fun start(): Boolean {
@@ -36,14 +41,19 @@ object RuntimeSession {
     }
     @Synchronized fun beginCapture(): Boolean {
         if (engine?.observe() != true) return false
-        capture = true; message = "Observación autorizada · Fase 1"; return true
+        vision=VisionEngine(app)
+        capture = true; message = "Observación autorizada · Fase 2"; return true
     }
-    @Synchronized fun submit(buffer: ByteBuffer, w: Int, h: Int, row: Int, pixel: Int, ts: Long): Boolean =
-        if (capture) engine?.submit(buffer,w,h,row,pixel,ts) == true else false
-    @Synchronized fun status() = Status(engine != null, capture, message, engine?.stats())
+    @Synchronized fun submit(buffer: ByteBuffer, w: Int, h: Int, row: Int, pixel: Int, ts: Long): Boolean {
+        if (!capture || engine?.submit(buffer,w,h,row,pixel,ts) != true) return false
+        vision?.offer(buffer,w,h,row,pixel,ts)
+        return true
+    }
+    @Synchronized fun status() = Status(engine != null, capture, message, engine?.stats(), vision?.snapshot())
     @Synchronized fun stop(reason: String) {
         val e = engine ?: return
         capture = false
+        vision?.close(); vision=null
         e.stop()
         val stats = e.stats()
         val session = id

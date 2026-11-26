@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "status": "planned_not_materialized",
   "main": 824,
   "intermediate": 32,
@@ -127,5 +127,15 @@
   "implemented_agents": 0,
   "training_source": "authorized_live_3d_game_only",
   "game_adapter": "unconfigured",
-  "separate_trainer": false
+  "separate_trainer": false,
+  "vision": {
+    "module": "vision",
+    "detector": "EfficientDet-Lite0 general-domain",
+    "ocr": "ML Kit Latin bundled",
+    "depth": "Depth Anything V2 Small ONNX quantized",
+    "tracking": "visible IoU association",
+    "model_execution": "Android not yet verified",
+    "game_adapter": "unconfigured",
+    "auxiliary_models_not_counted_in_858": true
+  }
 }
