@@ -1,4 +1,4 @@
-# OMEGA v0.8.0 — Fase 8 (candidato)
+# OMEGA v0.9.0 — Fase 9 (candidato)
 
 Infraestructura Android y núcleo nativo para la futura IA agéntica de videojuegos Shooter 3D autorizados. No contiene modelos entrenados ni política autónoma de juego. El código nativo y JNI se han probado en Linux; la compilación y las pruebas de Android requieren verificación.
 
@@ -67,3 +67,7 @@ Ciclo de selección de ofertas explícitamente autorizadas, recursos virtuales, 
 ## Fase 8: aprendizaje incremental
 
 Bandido contextual de 48 pesos (32 habilitados) sobre inventario y características F02 congeladas. Solo aprende de recibos confirmados del GamePort autorizado; no se han recibido experiencias reales. Checkpoint por juego/versión, SHA-256, reemplazo atómico, replay limitado y rechazo de actualizaciones degradantes. No hay PPO, SAC ni entrenamiento aparte. Véase `docs/FASE-8.md`.
+
+## Fase 9: metacognición
+
+Supervisor con cuatro perfiles de carga, latencia p95, tasa de fallos, telemetría pública Android, presupuesto dinámico, suspensión de aprendizaje y detención crítica. Pruebas y benchmark JVM: `bash scripts/test-meta-host.sh`. Métricas de teléfono, energía física y ejecución real pendientes. Véase `docs/FASE-9.md`.

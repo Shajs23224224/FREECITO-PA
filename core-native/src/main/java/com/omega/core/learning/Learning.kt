@@ -8,21 +8,26 @@ import java.security.MessageDigest
 import kotlin.math.abs
 
 /** Contextual bandit: one-step reward regression, frozen upstream representation. */
+data class PolicyHealth(val updates:Long,val rollbacks:Long,val disabled:Boolean)
+
 class ContinuousPolicy(private val scope:String,private val file:File):AdaptivePolicy {
     companion object { const val FEATURES=8; const val WEIGHTS=48; private const val MAGIC=0x4f4d3801 }
     private data class Sample(val family:Family,val x:List<Float>,val reward:Float)
     private data class State(val weights:FloatArray,val samples:List<Sample>,val ids:List<String>,val updates:Long,val rollbacks:Long)
     private var state=State(FloatArray(WEIGHTS),emptyList(),emptyList(),0,0)
     private var disabled=false
+    private var suspended=false
+    @Synchronized fun setSuspended(value:Boolean){suspended=value}
+    @Synchronized fun health()=PolicyHealth(state.updates,state.rollbacks,disabled)
     init { require(scope.length in 1..200); if(file.exists())try{state=read()}catch(e:Exception){disabled=true} }
     private fun eligible(f:Family)=f in listOf(Family.INSPECT,Family.EXPLORE,Family.COLLECT,Family.EXCHANGE_VIRTUAL)
     private fun valid(x:List<Float>)=x.size==FEATURES&&x.all{it.isFinite()&&abs(it)<=1f}
     private fun prediction(w:FloatArray,f:Family,x:List<Float>)=x.indices.sumOf{(w[f.ordinal*FEATURES+it]*x[it]).toDouble()}.toFloat().coerceIn(-1f,1f)
-    @Synchronized override fun adjustment(family:Family,features:List<Float>):Float = if(disabled||!eligible(family)||!valid(features))0f else 30f*prediction(state.weights,family,features)
+    @Synchronized override fun adjustment(family:Family,features:List<Float>):Float = if(disabled||suspended||!eligible(family)||!valid(features))0f else 30f*prediction(state.weights,family,features)
     @Synchronized fun stats():String="updates=${state.updates} rollback=${state.rollbacks} disabled=$disabled"
     @Synchronized fun weights():FloatArray=state.weights.copyOf()
     @Synchronized override fun confirmed(experience:Experience){
-        if(disabled||experience.scope!=scope||!eligible(experience.family)||!valid(experience.features)||!experience.reward.isFinite()||experience.reward !in -1f..1f||experience.commandId.length !in 1..160||experience.commandId in state.ids)return
+        if(disabled||suspended||experience.scope!=scope||!eligible(experience.family)||!valid(experience.features)||!experience.reward.isFinite()||experience.reward !in -1f..1f||experience.commandId.length !in 1..160||experience.commandId in state.ids)return
         val old=state
         val sample=Sample(experience.family,experience.features.toList(),experience.reward)
         val anchors=old.samples.filter{it.family==sample.family}

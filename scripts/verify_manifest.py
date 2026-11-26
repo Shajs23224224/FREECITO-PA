@@ -13,4 +13,5 @@ w=x['world']; assert len(set(w['memory_kinds']))==8 and w['automatic_kinds']==8 
 r=x['reasoning']; assert r['max_plans']==16 and r['max_steps']==8 and not r['training']
 e=x['executive']; assert e['max_in_flight']==1 and not e['real_money'] and not e['actual_game_execution']
 l=x['learning']; assert l['head_parameters']==48 and l['eligible_parameters']==32 and l['actual_game_experiences']==0 and not l['training_separate']
+m=x['meta']; assert m['role_budgets']==[4,2,1,0] and m['resource_stop_latched'] and m['latency_window']==32
 print('PASS: architecture manifest, counts, non-overlapping domain ranges, no false implementation claims')

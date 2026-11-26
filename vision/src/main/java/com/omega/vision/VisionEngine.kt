@@ -46,8 +46,15 @@ class VisionEngine(context: Context) : AutoCloseable {
         val result = AtomicReference<TimedObservation<T>?>(null)
         val status = AtomicReference("waiting_for_authorized_frame")
         var last = -1L
-        fun reserve(now: Long): Boolean {
-            if (last >= 0 && now-last < intervalNs) return false
+        var generation=0L
+        var enabled=true
+        fun configure(value:Boolean){
+            if(enabled==value)return
+            enabled=value; generation++; result.set(null); last=-1L
+            status.set(if(value) "waiting_for_authorized_frame" else "resource_paused")
+        }
+        fun reserve(now: Long,multiplier:Int): Boolean {
+            if (!enabled || (last >= 0 && now-last < intervalNs*multiplier)) return false
             if (!busy.compareAndSet(false,true)) return false
             last=now; return true
         }
@@ -58,6 +65,11 @@ class VisionEngine(context: Context) : AutoCloseable {
     private val text = Lane<List<TextLine>>(1_500_000_000L,4_000_000_000L)
     private val depth = Lane<List<Float>>(5_000_000_000L,15_000_000_000L)
     private var lastFrame = -1L
+    private var multiplier=1
+    @Synchronized fun configureLoad(cadenceMultiplier:Int,ocrEnabled:Boolean,depthEnabled:Boolean){
+        require(cadenceMultiplier in 1..4)
+        multiplier=cadenceMultiplier;text.configure(ocrEnabled);depth.configure(depthEnabled)
+    }
     // Each mutable backend and the tracker belong exclusively to its lane.
     private var detector: ObjectDetector? = null
     private var recognizer: TextRecognizer? = null
@@ -71,7 +83,7 @@ class VisionEngine(context: Context) : AutoCloseable {
         if (closed.get() || frameNs <= lastFrame || frameNs < 0) return
         lastFrame=frameNs
         val now=SystemClock.elapsedRealtimeNanos()
-        val a=fast.reserve(now); val b=text.reserve(now); val c=depth.reserve(now)
+        val a=fast.reserve(now,multiplier); val b=text.reserve(now,multiplier); val c=depth.reserve(now,multiplier)
         if (!a && !b && !c) return
         val pixels=try { Pixels.rgbaToArgb(buffer,w,h,row,pixel) } catch(e: IllegalArgumentException) {
             if(a)fast.busy.set(false); if(b)text.busy.set(false); if(c)depth.busy.set(false)
@@ -83,21 +95,22 @@ class VisionEngine(context: Context) : AutoCloseable {
     }
 
     private fun <T> launch(lane: Lane<T>,frameNs: Long,received: Long, work: ()->T?) {
+        val generation=lane.generation
         lane.executor.execute {
             try {
                 if (!closed.get()) {
                     val value=work()
                     synchronized(this) {
-                        if (!closed.get()) {
+                        if (!closed.get() && lane.enabled && generation==lane.generation) {
                             lane.result.set(value?.let { TimedObservation(frameNs,received,it) })
                             lane.status.set(if(value==null) "no_valid_output" else "inference_ok")
                         }
                     }
                 }
             } catch(e: Exception) {
-                synchronized(this) { if(!closed.get()) { lane.result.set(null); lane.status.set("unavailable:"+e.javaClass.simpleName) } }
+                synchronized(this) { if(!closed.get() && lane.enabled && generation==lane.generation) { lane.result.set(null); lane.status.set("unavailable:"+e.javaClass.simpleName) } }
             } catch(e: LinkageError) {
-                synchronized(this) { if(!closed.get()) { lane.result.set(null); lane.status.set("backend_unavailable") } }
+                synchronized(this) { if(!closed.get() && lane.enabled && generation==lane.generation) { lane.result.set(null); lane.status.set("backend_unavailable") } }
             } finally { lane.busy.set(false) }
         }
     }

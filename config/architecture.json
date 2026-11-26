@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "0.8.0",
+  "version": "0.9.0",
   "status": "compressed_modules_executable_untrained",
   "main": 824,
   "intermediate": 32,
@@ -154,13 +154,13 @@
     "policy": "none",
     "online_training": "only contextual bandit output head when authorized receipts arrive; 858 upstream modules frozen and untrained"
   },
-  "agent_specialization_status": "24 perception/reasoning slots and 3 conditional authorized-port slots; common evaluator; full specialization pending",
+  "agent_specialization_status": "30 conditional evidence slots; shared evaluator; full specialization pending",
   "multi_agent": {
     "teams": 16,
     "roles_per_team": 10,
     "registered_and_executable_roles": 160,
     "fully_specialized_agents": 0,
-    "live_evidence_slots": 27,
+    "live_evidence_slots": 30,
     "default_active_roles": 4,
     "max_active_roles": 8,
     "history_rounds": 32,
@@ -246,5 +246,39 @@
     "unknown_reward": null,
     "training_separate": false,
     "android_runtime": "pending"
+  },
+  "meta": {
+    "modes": [
+      "NORMAL",
+      "ECONOMY",
+      "LIMITED",
+      "STOP"
+    ],
+    "role_budgets": [
+      4,
+      2,
+      1,
+      0
+    ],
+    "cognitive_intervals_ms": [
+      1000,
+      2000,
+      3000,
+      null
+    ],
+    "vision_multipliers": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "sample_interval_ms": 2000,
+    "latency_window": 32,
+    "recovery_samples": 3,
+    "resource_stop_latched": true,
+    "policy_guard": "disabled or rollback count >=4 and greater than successful updates",
+    "quantization": "preexisting quantized depth model retained; FP32 upstream unchanged",
+    "device_benchmark": "pending",
+    "energy": "battery percentage/temperature and power saver only; no watts or joules"
   }
 }

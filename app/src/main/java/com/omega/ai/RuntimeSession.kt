@@ -9,6 +9,9 @@ import com.omega.vision.VisionEngine
 import com.omega.vision.VisionSnapshot
 import com.omega.ai.neural.NeuralSession
 import com.omega.ai.game.GameBinding
+import com.omega.ai.meta.ResourceProbe
+import com.omega.core.meta.*
+import android.os.SystemClock
 import java.nio.ByteBuffer
 import java.util.UUID
 
@@ -22,7 +25,13 @@ object RuntimeSession {
     private lateinit var app: Context
     private var vision: VisionEngine? = null
     private var neural: NeuralSession? = null
-    data class Status(val active: Boolean, val capturing: Boolean, val message: String, val stats: EngineStats?, val perception: VisionSnapshot?, val neuralStatus: String?)
+    private var probe:ResourceProbe?=null
+    private var governor=MetaGovernor()
+    private var budget=MetaGovernor.budget(Load.NORMAL)
+    private var sampledAt=-1L
+    private var submittedAt=-1L
+    private var resourceStatus:String?=null
+    data class Status(val active: Boolean, val capturing: Boolean, val message: String, val stats: EngineStats?, val perception: VisionSnapshot?, val neuralStatus: String?, val resources:String?)
     @Synchronized fun initialize(context: Context) {
         app=context.applicationContext
         store = SessionStore(app)
@@ -36,6 +45,7 @@ object RuntimeSession {
         return try {
             candidate = NativeEngine(); check(candidate.start())
             neuralCandidate = NeuralSession(app,GameBinding.adapter?.memoryScope,session,GameBinding.adapter?.commandPort)
+            probe=ResourceProbe(app);governor=MetaGovernor();budget=MetaGovernor.budget(Load.NORMAL);sampledAt=-1L;submittedAt=-1L;resourceStatus=null
             store.begin(session)
             neural = neuralCandidate
             engine = candidate; id = session; capture = false
@@ -46,17 +56,38 @@ object RuntimeSession {
         }
     }
     @Synchronized fun beginCapture(): Boolean {
-        if (engine?.observe() != true) return false
-        vision=VisionEngine(app)
-        capture = true; message = "Observación autorizada · Fase 8"; return true
+        if (!resourceHealthy() || engine?.observe() != true) return false
+        vision=VisionEngine(app).also{it.configureLoad(budget.visionMultiplier,budget.ocr,budget.depth)}
+        capture = true; message = "Observación autorizada · Fase 9"; return true
     }
     @Synchronized fun submit(buffer: ByteBuffer, w: Int, h: Int, row: Int, pixel: Int, ts: Long): Boolean {
-        if (!capture || engine?.submit(buffer,w,h,row,pixel,ts) != true) return false
+        if(!capture||!resourceHealthy())return false
+        val now=SystemClock.elapsedRealtimeNanos()
+        if(submittedAt>=0&&now-submittedAt<100_000_000L*budget.visionMultiplier)return false
+        if(engine?.submit(buffer,w,h,row,pixel,ts)!=true)return false
+        submittedAt=now
         vision?.offer(buffer,w,h,row,pixel,ts)
         vision?.snapshot()?.let { neural?.offer(it) }
         return true
     }
-    @Synchronized fun status() = Status(engine != null, capture, message, engine?.stats(), vision?.snapshot(), neural?.status())
+    /** Sample at most every two seconds. A critical reading is latched; the service closes projection. */
+    @Synchronized fun resourceHealthy():Boolean{
+        if(engine==null||budget.load==Load.STOP)return false
+        val now=SystemClock.elapsedRealtimeNanos()
+        if(sampledAt>=0&&now-sampledAt<2_000_000_000L)return true
+        sampledAt=now
+        val perf=neural?.performance()?:Performance(0,null,0.0)
+        val reading=runCatching{requireNotNull(probe).sample()}.getOrNull()
+        budget=if(reading!=null)governor.update(reading.health,perf) else governor.update(Health(.85,true,null,null,null,false,false,null),perf)
+        vision?.configureLoad(budget.visionMultiplier,budget.ocr,budget.depth)
+        neural?.configureBudget(budget)
+        resourceStatus=reading?.let{r->
+            val h=r.health
+            "Carga ${budget.load} · RAM libre ${r.availableMiB} MiB · PSS ${r.processPssMiB?:"?"} MiB · heap ${(h.heapRatio*100).toInt()}% · CPU ${h.cpuPct?.toInt()?:"?"}% (1 núcleo) · térmico ${h.thermal?:"?"} · batería ${h.batteryPct?:"?"}% / ${h.batteryC?:"?"} °C · p95 ${perf.p95Ms?.toInt()?:"?"} ms"
+        }?:"Telemetría no disponible · carga limitada"
+        return budget.load!=Load.STOP
+    }
+    @Synchronized fun status() = Status(engine != null, capture, message, engine?.stats(), vision?.snapshot(), neural?.status(),resourceStatus)
     @Synchronized fun stop(reason: String) {
         val e = engine ?: return
         capture = false
@@ -66,7 +97,8 @@ object RuntimeSession {
         val stats = e.stats()
         val session = id
         e.close(); engine = null; id = null
-        message = "Sistema detenido"
+        probe=null
+        message = if(budget.load==Load.STOP)"Sistema detenido por presión térmica/memoria" else "Sistema detenido"
         if (session != null) runCatching { store.finish(session,reason,stats) }.onFailure {
             message = "Detenido · error al guardar"; Log.e("OMEGA", "finish", it)
         }

@@ -7,6 +7,7 @@ import com.omega.core.world.*
 import com.omega.core.reasoning.*
 import com.omega.core.executive.*
 import com.omega.core.learning.ContinuousPolicy
+import com.omega.core.meta.*
 import java.io.File
 import java.security.MessageDigest
 import java.util.ArrayDeque
@@ -40,12 +41,19 @@ class NeuralSession(context:Context,scope:String?,sessionId:String,port:GamePort
     private val message=AtomicReference("858 módulos · 160 roles · política incremental")
     private var last=-1L
     private var seen=-1L
+    private val metrics=CycleMetrics()
+    @Volatile private var budget=MetaGovernor.budget(Load.NORMAL)
+    fun performance()=metrics.snapshot()
+    fun configureBudget(value:Budget){
+        budget=value
+        learner?.let{p->val h=p.health();p.setSuspended(!value.learning||!MetaGovernor.policyHealthy(h.updates,h.rollbacks,h.disabled))}
+    }
     private var priorTick:Tick?=null
     @Synchronized fun offer(s:VisionSnapshot) {
-        if(closed.get())return
+        if(closed.get()||budget.load==Load.STOP)return
         val now=SystemClock.elapsedRealtimeNanos()
         val frame=listOfNotNull(s.tracks?.frameNs,s.text?.frameNs,s.relativeDepth?.frameNs).maxOrNull() ?: return
-        if(frame<=seen || (last>=0 && now-last<1_000_000_000L) || !busy.compareAndSet(false,true))return
+        if(frame<=seen || (last>=0 && now-last<budget.cognitiveIntervalNs) || !busy.compareAndSet(false,true))return
         last=now; seen=frame
         val x=FloatArray(2048)
         val domains=mutableListOf<Int>()
@@ -64,6 +72,7 @@ class NeuralSession(context:Context,scope:String?,sessionId:String,port:GamePort
         s.text?.let { t -> domains+=2; x[18]=1f; x[2]=t.value.size/100f; evidence+=Evidence("evidence.A021",x[2],.5f,"ocr_confidence_unavailable",t.receivedNs) }
         evidence+=Evidence("evidence.A010",domains.size/3f,1f,"modality_availability",now)
         worker.execute {
+            val started=SystemClock.elapsedRealtimeNanos();var success=false
             try {
                 if(!closed.get()){
                     val t=s.tracks
@@ -135,9 +144,23 @@ class NeuralSession(context:Context,scope:String?,sessionId:String,port:GamePort
                             if(r.outcome!=Outcome.UNKNOWN)evidence+=Evidence("evidence.A048",if(r.outcome==Outcome.SUCCESS)1f else 0f,1f,"adapter_confirmed_receipt",now)
                         }
                     }
-                    val p=board.deliberate(frame,now,x,evidence,(0..15).toList(),4)
+                    val perf=metrics.snapshot()
+                    perf.p95Ms?.let{latency->
+                        x[170]=(latency/1500.0).coerceIn(0.0,1.0).toFloat()
+                        x[171]=perf.failureRatio.toFloat()
+                        evidence+=Evidence("evidence.A145",x[170],1f,"measured_cycle_latency",now)
+                        evidence+=Evidence("evidence.A144",x[171],1f,"measured_cycle_failure_ratio",now)
+                    }
+                    learner?.let{lp->
+                        val health=lp.health();val healthy=MetaGovernor.policyHealthy(health.updates,health.rollbacks,health.disabled)
+                        x[172]=if(healthy)1f else 0f
+                        evidence+=Evidence("evidence.A108",x[172],1f,"policy_health_guard",now)
+                    }
+                    val activeBudget=budget
+                    if(activeBudget.roles==0||closed.get())return@execute
+                    val p=board.deliberate(frame,now,x,evidence,(0..15).toList(),activeBudget.roles)
                     // F01/F02 remain diagnostic embeddings. Authorization, fresh state and symbolic context gate the command.
-                    val tick=if(closed.get())null else executive?.tick(selected!=null && result.facts["visual"]==Truth.TRUE && p.execution.all{it.isFinite()},p.execution)
+                    val tick=if(closed.get())null else executive?.tick(budget.commands && selected!=null && result.facts["visual"]==Truth.TRUE && p.execution.all{it.isFinite()},p.execution)
                     priorTick=tick
                     if(memory!=null && tick!=null && !closed.get()){
                         val wall=System.currentTimeMillis()
@@ -149,10 +172,11 @@ class NeuralSession(context:Context,scope:String?,sessionId:String,port:GamePort
                         }
                         memory.consolidate(records)
                     }
-                    if(!closed.get())message.set("Blackboard: ${p.proposals.size} roles · ${p.activeModules.size} módulos · ${p.selected.size} evidencias · $places firmas espaciales · plan: ${selected?.id?:"none"} · ejecutivo: ${tick?.status?:"sin adaptador"} · ${learner?.stats()?:"aprendizaje inactivo"}")
+                    if(!closed.get())message.set("Blackboard: ${p.proposals.size} roles · ${p.activeModules.size} módulos · ${p.selected.size} evidencias · $places firmas espaciales · plan: ${selected?.id?:"none"} · ejecutivo: ${tick?.status?:"sin adaptador"} · ${learner?.stats()?:"aprendizaje inactivo"} · carga: ${budget.load}")
+                    success=true
                 }
             } catch(e:Exception){if(!closed.get())message.set("Inferencia no disponible")}
-            finally {busy.set(false)}
+            finally {metrics.record((SystemClock.elapsedRealtimeNanos()-started).coerceAtLeast(0),success);busy.set(false)}
         }
     }
     fun status()=message.get()

@@ -30,7 +30,7 @@ class ProjectionService : Service() {
     private var density=0
     private var width=0; private var height=0
     private val scopeGuard = object : Runnable { override fun run() {
-        if(!GameBinding.canCapture()) shutdown("scope_lost") else main.postDelayed(this,250)
+        if(!GameBinding.canCapture()) shutdown("scope_lost") else if(!RuntimeSession.resourceHealthy()) shutdown("resource_stop") else main.postDelayed(this,250)
     } }
     private val callback = object : MediaProjection.Callback() {
         override fun onStop() { shutdown("projection_revoked") }
