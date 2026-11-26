@@ -1,0 +1,5 @@
+PASS: resource tiers, hysteresis, latched stop, CPU/thermal/battery/memory guards, rolling p95, failure rate, policy health
+JVM 21.0.12.1 arch=amd64 processors=4
+domains=1 modules=5 n=32 mean_ms=4.5091744375 p95_ms=6.646213 wall_ms=147.94717 process_cpu_ms=290.0
+domains=2 modules=8 n=32 mean_ms=6.19915178125 p95_ms=7.197748 wall_ms=199.254856 process_cpu_ms=390.0
+domains=4 modules=14 n=32 mean_ms=10.25141878125 p95_ms=11.761052 wall_ms=328.214437 process_cpu_ms=390.0

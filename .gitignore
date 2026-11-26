@@ -5,3 +5,8 @@ local.properties
 *.iml
 *.apk
 *.jks
+
+vision/src/main/assets/models/*.onnx
+vision/src/main/assets/models/*.tflite
+vision/src/main/assets/models/*.tmp
+vision/src/main/assets/models/MODEL_SHA256.txt
