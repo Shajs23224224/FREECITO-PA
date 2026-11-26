@@ -1,4 +1,4 @@
-# OMEGA v0.6.0 — Fase 6 (candidato)
+# OMEGA v0.7.0 — Fase 7 (candidato)
 
 Infraestructura Android y núcleo nativo para la futura IA agéntica de videojuegos Shooter 3D autorizados. No contiene modelos entrenados ni política autónoma de juego. El código nativo y JNI se han probado en Linux; la compilación y las pruebas de Android requieren verificación.
 
@@ -59,3 +59,7 @@ WorldModel 2.5D relativo a la cámara, relaciones entre entidades visibles, hip�
 ## Fase 6: razonamiento cognitivo
 
 Razonador simbólico de cuatro valores, deducción acíclica, estimación beta, ranking abductivo, asociación estadística (no identificación causal), análisis hipotético y planificación de observaciones. No ejecuta acciones ni entrena pesos. Prueba local JVM: `bash scripts/test-reason-host.sh`. Véase `docs/FASE-6.md`.
+
+## Fase 7: ejecutivo autónomo
+
+Ciclo de selección de ofertas explícitamente autorizadas, recursos virtuales, validación de frescura, un comando pendiente y recibos. Contrato GamePort documentado, sin adaptador concreto; no toca otras apps ni ejecuta acciones por pantalla. Prueba JVM: `bash scripts/test-executive-host.sh`. Consulte `docs/FASE-7.md` y `docs/GAME-PORT.md`.

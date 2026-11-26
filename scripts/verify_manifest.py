@@ -9,6 +9,7 @@ assert x['implemented_networks']==858 and x['implemented_dense_independent_netwo
 n=x['neural']; assert n['unique_parameters']==2*16*2048*4+858*(16*4+2048)
 assert n['output_bias_update_parameters']==858*2048 and n['default_active_modules']==8
 a=x['multi_agent']; assert a['teams']*a['roles_per_team']==160 and a['registered_and_executable_roles']==160 and a['fully_specialized_agents']==0
-w=x['world']; assert len(set(w['memory_kinds']))==8 and w['automatic_kinds']==7 and w['max_total']==4096
+w=x['world']; assert len(set(w['memory_kinds']))==8 and w['automatic_kinds']==8 and w['max_total']==4096
 r=x['reasoning']; assert r['max_plans']==16 and r['max_steps']==8 and not r['training']
+e=x['executive']; assert e['max_in_flight']==1 and not e['real_money'] and not e['actual_game_execution']
 print('PASS: architecture manifest, counts, non-overlapping domain ranges, no false implementation claims')

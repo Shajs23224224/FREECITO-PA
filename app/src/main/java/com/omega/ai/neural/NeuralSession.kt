@@ -5,6 +5,7 @@ import android.content.Context
 import com.omega.ai.persistence.CognitiveStore
 import com.omega.core.world.*
 import com.omega.core.reasoning.*
+import com.omega.core.executive.*
 import java.util.ArrayDeque
 import com.omega.core.neural.NeuralEngine
 import com.omega.core.agents.AgentBoard
@@ -14,8 +15,9 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
-/** Experimental perception embedding only. Outputs never dispatch actions. */
-class NeuralSession(context:Context,scope:String?,sessionId:String) : AutoCloseable {
+/** Perception and symbolic coordination; optional owner-authorized command port. Untrained embeddings do not dispatch commands. */
+class NeuralSession(context:Context,scope:String?,sessionId:String,port:GamePort?=null) : AutoCloseable {
+    private val executive=port?.takeIf{scope!=null && it.scope==scope}?.let{Executive(it,sessionId,{SystemClock.elapsedRealtimeNanos()})}
     private val store=scope?.let{CognitiveStore(context)}
     private val memory=store?.let{CognitiveMemory(requireNotNull(scope),it)}
     private val world=memory?.let{WorldModel(it,sessionId)}
@@ -31,6 +33,7 @@ class NeuralSession(context:Context,scope:String?,sessionId:String) : AutoClosea
     private val message=AtomicReference("858 módulos · 160 roles · sin entrenar")
     private var last=-1L
     private var seen=-1L
+    private var priorTick:Tick?=null
     @Synchronized fun offer(s:VisionSnapshot) {
         if(closed.get())return
         val now=SystemClock.elapsedRealtimeNanos()
@@ -117,13 +120,34 @@ class NeuralSession(context:Context,scope:String?,sessionId:String) : AutoClosea
                             Recall(MemoryKind.PROSPECTIVE,"pending_observation",selected.id+" not executed",.5f,wall,"symbolic_reasoner")
                         ))
                     }
+                    priorTick?.let{tick->
+                        x[160]=tick.offered/32f;x[161]=tick.missing/64f
+                        evidence+=Evidence("evidence.A081",x[161],1f,"adapter_inventory_deficits",now)
+                        evidence+=Evidence("evidence.A043",x[160],1f,"adapter_available_offers",now)
+                        tick.result?.let{r->
+                            if(r.outcome!=Outcome.UNKNOWN)evidence+=Evidence("evidence.A048",if(r.outcome==Outcome.SUCCESS)1f else 0f,1f,"adapter_confirmed_receipt",now)
+                        }
+                    }
                     val p=board.deliberate(frame,now,x,evidence,(0..15).toList(),4)
-                    if(!closed.get())message.set("Blackboard: ${p.proposals.size} roles · ${p.activeModules.size} módulos · ${p.selected.size} evidencias · $places firmas espaciales · plan: ${selected?.id?:"none"}")
+                    // F01/F02 remain diagnostic embeddings. Authorization, fresh state and symbolic context gate the command.
+                    val tick=if(closed.get())null else executive?.tick(selected!=null && result.facts["visual"]==Truth.TRUE && p.execution.all{it.isFinite()})
+                    priorTick=tick
+                    if(memory!=null && tick!=null && !closed.get()){
+                        val wall=System.currentTimeMillis()
+                        val records=mutableListOf<Recall>()
+                        tick.goal?.let{g->records+=Recall(MemoryKind.PROSPECTIVE,"executive_goal",g+" "+tick.status,.5f,wall,"executive")}
+                        tick.result?.let{r->
+                            records+=Recall(MemoryKind.EPISODIC,"command:"+r.command.id,r.family.name+" "+r.outcome.name+" "+r.reason,if(r.outcome==Outcome.UNKNOWN)0f else 1f,wall,"adapter_receipt")
+                            if(r.outcome==Outcome.SUCCESS)records+=Recall(MemoryKind.PROCEDURAL,"confirmed:"+r.family.name,"owner_api_receipt; not learned policy",.7f,wall,"adapter_receipt")
+                        }
+                        memory.consolidate(records)
+                    }
+                    if(!closed.get())message.set("Blackboard: ${p.proposals.size} roles · ${p.activeModules.size} módulos · ${p.selected.size} evidencias · $places firmas espaciales · plan: ${selected?.id?:"none"} · ejecutivo: ${tick?.status?:"sin adaptador"}")
                 }
             } catch(e:Exception){if(!closed.get())message.set("Inferencia no disponible")}
             finally {busy.set(false)}
         }
     }
     fun status()=message.get()
-    @Synchronized override fun close(){ if(closed.compareAndSet(false,true)){worker.execute{store?.close()};worker.shutdown()} }
+    @Synchronized override fun close(){ if(closed.compareAndSet(false,true)){executive?.close();worker.execute{store?.close()};worker.shutdown()} }
 }
