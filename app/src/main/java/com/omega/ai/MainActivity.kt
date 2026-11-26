@@ -31,11 +31,11 @@ class MainActivity : Activity() {
         }
         root.addView(ImageView(this).apply { setImageResource(com.omega.ai.R.drawable.ic_omega); contentDescription="Logotipo OMEGA" }, LinearLayout.LayoutParams(dp(104),dp(104)))
         root.addView(label("O M E G A",30f,Color.WHITE))
-        root.addView(label("INTELIGENCIA AGÉNTICA · FASE 1",12f,Color.rgb(144,217,235)))
+        root.addView(label("INTELIGENCIA AGÉNTICA · FASE 7",12f,Color.rgb(144,217,235)))
         status = label("Sistema inactivo",16f,Color.WHITE).apply { setPadding(0,dp(24),0,dp(24)) }; root.addView(status)
         button = Button(this).apply { isAllCaps=false; textSize=18f; minHeight=dp(56); setOnClickListener { toggle() } }
         root.addView(button,LinearLayout.LayoutParams(-1,-2))
-        root.addView(label("v0.1.0 · Infraestructura nativa",12f,Color.LTGRAY).apply { setPadding(0,dp(16),0,0) })
+        root.addView(label("v0.7.0 · Ejecutivo autónomo",12f,Color.LTGRAY).apply { setPadding(0,dp(16),0,0) })
         setContentView(root); render()
     }
     private fun dp(v: Int) = (v*resources.displayMetrics.density+0.5f).toInt()
@@ -43,6 +43,10 @@ class MainActivity : Activity() {
     private fun render() {
         val s=RuntimeSession.status()
         status.text = if(s.capturing) "${s.message}\nFotogramas procesados: ${s.stats?.processed ?: 0}" else s.message
+        if (s.capturing) s.perception?.let { p ->
+            status.append("\nVisor: ${p.detectorStatus} · OCR: ${p.ocrStatus} · profundidad: ${p.depthStatus}")
+        }
+        s.neuralStatus?.let { status.append("\n$it") }
         button.text=if(s.active) "DETENER IA" else "INICIAR IA"
         button.isEnabled=!awaitingConsent
     }
