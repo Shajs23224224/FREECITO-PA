@@ -9,6 +9,7 @@ import com.omega.vision.VisionEngine
 import com.omega.vision.VisionSnapshot
 import com.omega.ai.neural.NeuralSession
 import com.omega.ai.game.GameBinding
+import com.omega.ai.accessibility.TouchBridge
 import com.omega.ai.meta.ResourceProbe
 import com.omega.core.meta.*
 import com.omega.core.release.Connection
@@ -61,7 +62,7 @@ object RuntimeSession {
     @Synchronized fun beginCapture(): Boolean {
         if (!GameBinding.canCapture() || !resourceHealthy() || engine?.observe() != true) return false
         vision=VisionEngine(app).also{it.configureLoad(budget.visionMultiplier,budget.ocr,budget.depth)}
-        capture = true; message = "Observación autorizada · v1.0.0"; return true
+        capture = true; TouchBridge.arm(); message = "Observación autorizada · v1.0.2"; return true
     }
     @Synchronized fun submit(buffer: ByteBuffer, w: Int, h: Int, row: Int, pixel: Int, ts: Long): Boolean {
         if(!capture||!GameBinding.canCapture()||!resourceHealthy())return false
@@ -84,6 +85,7 @@ object RuntimeSession {
         budget=if(reading!=null)governor.update(reading.health,perf) else governor.update(Health(.85,true,null,null,null,false,false,null),perf)
         vision?.configureLoad(budget.visionMultiplier,budget.ocr,budget.depth)
         neural?.configureBudget(budget)
+        if(!budget.commands)TouchBridge.disarm() else if(capture)TouchBridge.arm()
         resourceStatus=reading?.let{r->
             val h=r.health
             "Carga ${budget.load} · RAM libre ${r.availableMiB} MiB · PSS ${r.processPssMiB?:"?"} MiB · heap ${(h.heapRatio*100).toInt()}% · CPU ${h.cpuPct?.toInt()?:"?"}% (1 núcleo) · térmico ${h.thermal?:"?"} · batería ${h.batteryPct?:"?"}% / ${h.batteryC?:"?"} °C · p95 ${perf.p95Ms?.toInt()?:"?"} ms"
@@ -92,6 +94,7 @@ object RuntimeSession {
     }
     @Synchronized fun status() = Status(engine != null, capture, message, engine?.stats(), vision?.snapshot(), neural?.status(),resourceStatus)
     @Synchronized fun stop(reason: String) {
+        TouchBridge.disarm()
         val e = engine ?: return
         capture = false
         neural?.close(); neural=null

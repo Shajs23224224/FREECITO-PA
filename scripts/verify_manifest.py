@@ -14,5 +14,6 @@ r=x['reasoning']; assert r['max_plans']==16 and r['max_steps']==8 and not r['tra
 e=x['executive']; assert e['max_in_flight']==1 and not e['real_money'] and not e['actual_game_execution']
 l=x['learning']; assert l['head_parameters']==48 and l['eligible_parameters']==32 and l['actual_game_experiences']==0 and not l['training_separate']
 m=x['meta']; assert m['role_budgets']==[4,2,1,0] and m['resource_stop_latched'] and m['latency_window']==32
-v=x['release']; assert x['version']=='1.0.1' and v['scope_and_freshness_gate'] and not v['gameplay_validated'] and not v['physical_device_validated']
+v=x['release']; assert x['version']=='1.0.2' and v['scope_and_freshness_gate'] and not v['gameplay_validated'] and not v['physical_device_validated']
+a=x['accessibility']; assert not a['configured'] and not a['public_client_enabled'] and a['max_pending']==1 and not a['delivery_is_reward']
 print('PASS: architecture manifest, counts, non-overlapping domain ranges, no false implementation claims')
