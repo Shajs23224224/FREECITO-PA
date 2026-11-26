@@ -54,6 +54,7 @@ class OmegaTouchService:AccessibilityService(){
         val posted=main.post{
             try{
                 val target=GameBinding.accessibilityTarget()
+                if(target==null||!TouchBridge.allowed(token)){finish(false);return@post}
                 val root=rootInActiveWindow
                 val foreground=root?.packageName?.toString()
                 val bounds=Rect()
