@@ -1,0 +1,9 @@
+# OMEGA v0.7.0 — Autonomous Executive
+
+Se conserva el proyecto previo. Executive selecciona objetivos con información explícita de un adaptador propietario/autorizado: déficit de recursos, coste en recursos virtuales, inspección o exploración. Prioridad heurística y no entrenada. Controla secuencias, TTL, autorización, ofertas admitidas, un comando pendiente y confirmación por recibo. Recolección e intercambio requieren incremento del inventario observado además del recibo de éxito. Si no hay confirmación, se bloquea la sesión en vez de repetir. No se habilita uso/equipamiento hasta validar necesidad y efecto. No hay lógica específica de un título, combate ni control externo por pantalla. El contrato no está conectado y GameBinding.adapter sigue siendo null.
+
+La sesión cognitiva consume resultados del ejecutivo en el vector de entrada y Blackboard, con hasta tres entradas adicionales. La decisión está acotada por contexto simbólico y por integridad numérica de F02; los embeddings no entrenados no se interpretan como acciones ni como política aprendida. Se conservan las ocho categorías de memoria: los objetivos y resultados se registran cuando existen, y la procedimental recibe un registro de recibo confirmado, no una habilidad neuronal aprendida. No se actualizan pesos, ni se crean experiencias falsas de partida.
+
+Prueba local JVM ejecutada: ExecutiveSmoke con un doble unitario de interfaz (no simulador, no minijuego, no entrenador). Se verificaron autorización, secuencia fresca, déficit, ofertas exclusivamente virtuales, coste, una orden pendiente, recibo, variación de inventario, bloqueo por timeout y parada. Se añade a CI. Android, API real y partida autorizada no verificados. El run de fase 6 45902669408 estaba en compilación Android al revisar. No se promete un APK sin comprobar su artefacto.
+
+El siguiente paso requiere identificar el videojuego y disponer de una integración oficialmente autorizada. No se añade entrenamiento separado.
