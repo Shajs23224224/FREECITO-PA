@@ -42,5 +42,5 @@ class CognitiveStore(context:Context):SQLiteOpenHelper(context.applicationContex
             buildList{while(c.moveToNext())add(Recall(kind,c.getString(0),c.getString(1),c.getFloat(2),c.getLong(3),c.getString(4)))}
         }
     }
-    @Synchronized override fun close(){super.close()}
+    @Synchronized override fun close(){super<SQLiteOpenHelper>.close()}
 }
