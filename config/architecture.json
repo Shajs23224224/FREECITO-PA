@@ -1,0 +1,131 @@
+{
+  "schema": 1,
+  "version": "0.1.0",
+  "status": "planned_not_materialized",
+  "main": 824,
+  "intermediate": 32,
+  "final": 2,
+  "agents": 160,
+  "hidden_layers": 16,
+  "hidden_width": 2048,
+  "domains": [
+    {
+      "domain": "percepcion",
+      "first": 1,
+      "last": 52,
+      "count": 52,
+      "agents": 10
+    },
+    {
+      "domain": "espacial_3d",
+      "first": 53,
+      "last": 104,
+      "count": 52,
+      "agents": 10
+    },
+    {
+      "domain": "semantica",
+      "first": 105,
+      "last": 156,
+      "count": 52,
+      "agents": 10
+    },
+    {
+      "domain": "navegacion",
+      "first": 157,
+      "last": 208,
+      "count": 52,
+      "agents": 10
+    },
+    {
+      "domain": "combate_virtual",
+      "first": 209,
+      "last": 260,
+      "count": 52,
+      "agents": 10
+    },
+    {
+      "domain": "tactica",
+      "first": 261,
+      "last": 312,
+      "count": 52,
+      "agents": 10
+    },
+    {
+      "domain": "estrategia",
+      "first": 313,
+      "last": 364,
+      "count": 52,
+      "agents": 10
+    },
+    {
+      "domain": "prediccion",
+      "first": 365,
+      "last": 416,
+      "count": 52,
+      "agents": 10
+    },
+    {
+      "domain": "recursos",
+      "first": 417,
+      "last": 467,
+      "count": 51,
+      "agents": 10
+    },
+    {
+      "domain": "economia_virtual",
+      "first": 468,
+      "last": 518,
+      "count": 51,
+      "agents": 10
+    },
+    {
+      "domain": "aprendizaje",
+      "first": 519,
+      "last": 569,
+      "count": 51,
+      "agents": 10
+    },
+    {
+      "domain": "memoria",
+      "first": 570,
+      "last": 620,
+      "count": 51,
+      "agents": 10
+    },
+    {
+      "domain": "logica_causal",
+      "first": 621,
+      "last": 671,
+      "count": 51,
+      "agents": 10
+    },
+    {
+      "domain": "adaptacion",
+      "first": 672,
+      "last": 722,
+      "count": 51,
+      "agents": 10
+    },
+    {
+      "domain": "metacognicion",
+      "first": 723,
+      "last": 773,
+      "count": 51,
+      "agents": 10
+    },
+    {
+      "domain": "coordinacion",
+      "first": 774,
+      "last": 824,
+      "count": 51,
+      "agents": 10
+    }
+  ],
+  "profile_default": "mobile_compressed_planned",
+  "implemented_networks": 0,
+  "implemented_agents": 0,
+  "training_source": "authorized_live_3d_game_only",
+  "game_adapter": "unconfigured",
+  "separate_trainer": false
+}

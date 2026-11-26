@@ -1,0 +1,10 @@
+-- Configuring done (0.0s)
+-- Generating done (0.0s)
+[ 33%] Built target omega_engine
+[ 66%] Built target omega_jni
+[100%] Built target omega_native_tests
+Start 1: native_engine
+1/1 Test #1: native_engine ....................   Passed    0.01 sec
+100% tests passed, 0 tests failed out of 1
+PASS: Kotlin/JNI real, direct buffer slice, stats, lifecycle, architecture arithmetic
+PASS: architecture manifest, counts, non-overlapping domain ranges, no false implementation claims
