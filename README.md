@@ -1,4 +1,4 @@
-# OMEGA v0.4.0 — Fase 4 (candidato)
+# OMEGA v0.5.0 — Fase 5 (candidato)
 
 Infraestructura Android y núcleo nativo para la futura IA agéntica de videojuegos Shooter 3D autorizados. No contiene modelos entrenados ni política autónoma de juego. El código nativo y JNI se han probado en Linux; la compilación y las pruebas de Android requieren verificación.
 
@@ -51,3 +51,7 @@ El módulo `vision` implementa inferencia local con tres rutas: EfficientDet-Lit
 ## Fase 4: tablero cognitivo
 
 160 roles ejecutables con el registro de roles del PDF, 16 equipos, asociaciones a los 824 módulos principales, rotación de módulos, validación de evidencia temporal y conflictos, propuestas de observación, memoria de trabajo de 32 rondas y fusión intermedia/final. Los roles comparten un evaluador general; la especialización semántica de cada dominio sigue pendiente. Se conectan ocho indicadores perceptivos; los demás roles requieren datos de fases futuras. Las salidas neuronales no entrenadas no determinan confianza ni acciones. Prueba local: `bash scripts/test-agents-host.sh`. Véase `docs/FASE-4.md`.
+
+## Fase 5: modelo del mundo y memorias
+
+WorldModel 2.5D relativo a la cámara, relaciones entre entidades visibles, hipótesis de lugares por firma, aristas temporales, memoria SQLite transaccional y recuperación contextual. Ocho categorías persistibles; cinco reciben observaciones automáticamente, tres esperan habilidades, estrategias y objetivos reales. El adaptador autorizado debe proporcionar ámbito de juego y versión. Prueba local JVM: `bash scripts/test-world-host.sh`; SQLite Android y validación en partida pendientes. Véase `docs/FASE-5.md`.

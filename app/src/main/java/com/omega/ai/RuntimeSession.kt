@@ -8,6 +8,7 @@ import com.omega.core.EngineStats
 import com.omega.vision.VisionEngine
 import com.omega.vision.VisionSnapshot
 import com.omega.ai.neural.NeuralSession
+import com.omega.ai.game.GameBinding
 import java.nio.ByteBuffer
 import java.util.UUID
 
@@ -34,7 +35,7 @@ object RuntimeSession {
         var neuralCandidate: NeuralSession? = null
         return try {
             candidate = NativeEngine(); check(candidate.start())
-            neuralCandidate = NeuralSession()
+            neuralCandidate = NeuralSession(app,GameBinding.adapter?.memoryScope,session)
             store.begin(session)
             neural = neuralCandidate
             engine = candidate; id = session; capture = false
@@ -47,7 +48,7 @@ object RuntimeSession {
     @Synchronized fun beginCapture(): Boolean {
         if (engine?.observe() != true) return false
         vision=VisionEngine(app)
-        capture = true; message = "Observación autorizada · Fase 4"; return true
+        capture = true; message = "Observación autorizada · Fase 5"; return true
     }
     @Synchronized fun submit(buffer: ByteBuffer, w: Int, h: Int, row: Int, pixel: Int, ts: Long): Boolean {
         if (!capture || engine?.submit(buffer,w,h,row,pixel,ts) != true) return false
