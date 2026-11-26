@@ -40,3 +40,7 @@ No añadir entrenador, simulador, minijuego, entorno 2D ni enseñanza manual. So
 ## Cierre pendiente
 
 Verificar compilación y lint, instalación ARM64, inicio y parada, recuperación SQLite, revocación de permisos y rendimiento en dispositivo. La captura sigue bloqueada sin un juego e interfaz autorizados.
+
+## Revisión de regresión durante Fase 2
+
+Se repitió `scripts/test-host.sh` sobre la copia local de la Fase 1: CTest 1/1, Kotlin/JNI y manifiesto aprobados. GitHub no devolvió estados de CI ni ejecuciones de pull request asociadas al commit e13fd2d. No se ha confirmado APK. Se corrigió el orden de startForeground frente al rechazo de alcance en la infraestructura MediaProjection; sigue pendiente una prueba Android.
