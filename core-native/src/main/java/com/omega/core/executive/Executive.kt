@@ -1,6 +1,6 @@
 package com.omega.core.executive
 
-enum class Family { INSPECT, EXPLORE, COLLECT, EQUIP, USE, EXCHANGE_VIRTUAL }
+enum class Family { INSPECT, EXPLORE, COLLECT, EQUIP, USE, EXCHANGE_VIRTUAL, COVER, RELOAD, HEAL, ENGAGE, DISENGAGE }
 enum class Outcome { SUCCESS, FAILURE, UNKNOWN }
 data class Resource(val id:String,val count:Int,val desired:Int) {
     init { require(id.length in 1..64 && count in 0..1000000 && desired in 0..1000000) }
@@ -9,7 +9,7 @@ data class Offer(val id:String,val family:Family,val resource:String?=null,val c
     init { require(id.length in 1..80 && cost in 0..1000000 && (resource==null||resource.length in 1..64) && (costResource==null||costResource.length in 1..64)) }
 }
 data class Receipt(val commandId:String,val outcome:Outcome)
-data class GameState(val scope:String,val sequence:Long,val observedNs:Long,val resources:List<Resource>,val offers:List<Offer>,val receipt:Receipt?=null) {
+data class GameState(val scope:String,val sequence:Long,val observedNs:Long,val resources:List<Resource>,val offers:List<Offer>,val receipt:Receipt?=null,val combat:CombatContext?=null) {
     init { require(scope.length in 1..200 && sequence>=0 && observedNs>=0 && resources.size<=64 && offers.size<=32 && resources.map{it.id}.distinct().size==resources.size && offers.map{it.id}.distinct().size==offers.size) }
 }
 data class Command(val id:String,val scope:String,val sequence:Long,val offerId:String,val expiresNs:Long)
@@ -31,12 +31,15 @@ interface GamePort {
     fun stop()
 }
 class Executive(private val port:GamePort,private val session:String,private val clock:()->Long,private val ttl:Long=2_000_000_000L,private val policy:AdaptivePolicy?=null,private val permissionGate:()->Boolean={true}) : AutoCloseable {
-    private data class Pending(val cmd:Command,val offer:Offer,val before:Map<String,Int>,val features:List<Float>)
+    private data class Pending(val cmd:Command,val offer:Offer,val before:Map<String,Int>,val features:List<Float>,val combat:CombatContext?)
     private var pending:Pending?=null
     private var last=-1L
     private var count=0L
     private var stopped=false
     private var uncertain=false
+    private var latestCombat:Pair<Long,CombatContext>?=null
+    private val visits=mutableMapOf<Family,Int>()
+    @Synchronized fun combatSnapshot()=latestCombat
     private val scope=port.scope
     init { require(session.length in 1..80 && scope.length in 1..200 && ttl in 1..10_000_000_000L) }
     @Synchronized fun tick(contextReady:Boolean,embedding:FloatArray?=null):Tick {
@@ -53,6 +56,7 @@ class Executive(private val port:GamePort,private val session:String,private val
             return Tick("waiting_fresh_state")
         }
         last=state.sequence
+        latestCombat=state.combat?.takeIf{it.usable()}?.let{state.observedNs to it}
         val stock=state.resources.associateBy{it.id}
         val deficits=state.resources.count{it.count<it.desired}
         if(old!=null){
@@ -64,12 +68,14 @@ class Executive(private val port:GamePort,private val session:String,private val
                 val verified=when(old.offer.family){
                     Family.COLLECT,Family.EXCHANGE_VIRTUAL -> delta!=null&&delta>0
                     Family.USE -> delta!=null&&delta<0
+                    Family.COVER,Family.RELOAD,Family.HEAL,Family.ENGAGE,Family.DISENGAGE -> TacticalPolicy.confirmed(CombatAction.valueOf(old.offer.family.name),old.combat,state.combat)
                     else -> true // owner API receipt is the only evidence for these operations
                 }
                 val outcome=if(receipt.outcome==Outcome.SUCCESS&&!verified)Outcome.UNKNOWN else receipt.outcome
                 pending=null
                 if(outcome==Outcome.UNKNOWN)halt()
                 else if(permissionGate() && port.authorized() && port.scope==scope){
+                    visits[old.offer.family]=(visits[old.offer.family]?:0).coerceAtMost(1_000_000)+1
                     val reward=if(outcome==Outcome.FAILURE)-1f else if(old.offer.family==Family.EXCHANGE_VIRTUAL).9f else 1f
                     policy?.confirmed(Experience(old.cmd.id,scope,old.offer.family,old.features,reward))
                 }else halt()
@@ -81,6 +87,9 @@ class Executive(private val port:GamePort,private val session:String,private val
         if(!contextReady)return Tick("context_unavailable",offered=state.offers.size,missing=deficits)
         fun priority(a:Offer):Int {
             if(!a.virtualOnly)return -1
+            val combat=state.combat
+            if(a.family.ordinal>=Family.COVER.ordinal)return if(a.cost==0)TacticalPolicy.priority(CombatAction.valueOf(a.family.name),combat) else -1
+            if(combat!=null&&(!combat.usable()||combat.threatVisible!=false)&&a.family!=Family.INSPECT)return -1
             val r=stock[a.resource]
             val needs=r!=null&&r.count<r.desired
             val affordable=a.cost==0 || (a.costResource!=null&&(stock[a.costResource]?.count?:-1)>=a.cost)
@@ -91,6 +100,7 @@ class Executive(private val port:GamePort,private val session:String,private val
                 Family.EQUIP,Family.USE -> -1 // no validated need/effect contract yet
                 Family.EXPLORE -> if(a.cost==0)40 else -1
                 Family.INSPECT -> if(a.cost==0)30 else -1
+                else -> -1
             }
         }
         val e=embedding?.takeIf{it.size==2048&&it.all{v->v.isFinite()}}
@@ -102,20 +112,21 @@ class Executive(private val port:GamePort,private val session:String,private val
         }
         val m0=mean(0);val m1=mean(512);val m2=mean(1024)
         fun features(a:Offer):List<Float>{
+            if(a.family.ordinal>=Family.COVER.ordinal)return TacticalPolicy.features(state.combat,m0)
             val r=stock[a.resource]
             val deficit=if(r!=null&&r.desired>0)((r.desired-r.count).toFloat()/r.desired).coerceIn(0f,1f) else 0f
             val cost=if(a.cost==0)0f else (a.cost.toFloat()/(stock[a.costResource]?.count?:1).coerceAtLeast(1)).coerceIn(0f,1f)
             return listOf(1f,deficits/64f,state.offers.size/32f,deficit,cost,m0,m1,m2)
         }
-        val offer=state.offers.map{it to priority(it)}.filter{it.second>=0}.map{(a,p)->a to (p+(policy?.adjustment(a.family,features(a))?:0f).let{if(it.isFinite())it.coerceIn(-30f,30f) else 0f})}.sortedWith(compareByDescending<Pair<Offer,Float>>{it.second}.thenBy{it.first.id}).firstOrNull()?.first ?: return Tick("no_eligible_offer",offered=state.offers.size,missing=deficits)
+        val offer=state.offers.map{it to priority(it)}.filter{it.second>=0}.map{(a,p)->a to (p+(policy?.adjustment(a.family,features(a))?:0f).let{if(it.isFinite())it.coerceIn(-30f,30f) else 0f}+(if(state.combat?.usable()==true) 6f/(1+(visits[a.family]?:0)) else 0f))}.sortedWith(compareByDescending<Pair<Offer,Float>>{it.second}.thenBy{it.first.id}).firstOrNull()?.first ?: return Tick("no_eligible_offer",offered=state.offers.size,missing=deficits)
         val dispatchTime=clock()
         if(dispatchTime<now || dispatchTime-state.observedNs>=ttl || !permissionGate() || !port.authorized() || port.scope!=scope){halt();return Tick("authorization_or_freshness_lost")}
         val cmd=Command("$session:${++count}",scope,state.sequence,offer.id,state.observedNs+ttl)
         // Set pending before calling port: exceptions must never cause a retry of uncertain execution.
-        pending=Pending(cmd,offer,stock.mapValues{it.value.count},features(offer))
+        pending=Pending(cmd,offer,stock.mapValues{it.value.count},features(offer),state.combat)
         if(!port.submit(cmd)){pending=null;return Tick("rejected",offer.family.name,state.offers.size,deficits)}
         return Tick("submitted",offer.family.name,state.offers.size,deficits)
     }
-    private fun halt(){uncertain=true;pending=null;runCatching{port.stop()}}
-    @Synchronized override fun close(){if(!stopped){stopped=true;pending=null;runCatching{port.stop()}}}
+    private fun halt(){uncertain=true;pending=null;latestCombat=null;runCatching{port.stop()}}
+    @Synchronized override fun close(){if(!stopped){stopped=true;pending=null;latestCombat=null;runCatching{port.stop()}}}
 }

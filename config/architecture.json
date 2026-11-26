@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "1.0.2",
+  "version": "1.0.3",
   "status": "compressed_modules_executable_untrained",
   "main": 824,
   "intermediate": 32,
@@ -154,13 +154,13 @@
     "policy": "none",
     "online_training": "only contextual bandit output head when authorized receipts arrive; 858 upstream modules frozen and untrained"
   },
-  "agent_specialization_status": "30 conditional evidence slots; shared evaluator; full specialization pending",
+  "agent_specialization_status": "35 conditional evidence slots; common evaluator",
   "multi_agent": {
     "teams": 16,
     "roles_per_team": 10,
     "registered_and_executable_roles": 160,
     "fully_specialized_agents": 0,
-    "live_evidence_slots": 30,
+    "live_evidence_slots": 35,
     "default_active_roles": 4,
     "max_active_roles": 8,
     "history_rounds": 32,
@@ -216,7 +216,12 @@
       "COLLECT",
       "EXCHANGE_VIRTUAL",
       "EXPLORE",
-      "INSPECT"
+      "INSPECT",
+      "COVER",
+      "RELOAD",
+      "HEAL",
+      "ENGAGE",
+      "DISENGAGE"
     ],
     "disabled_families": [
       "EQUIP",
@@ -229,16 +234,16 @@
   },
   "learning": {
     "type": "contextual bandit; one-step reward regression; no PPO or SAC",
-    "head_parameters": 48,
-    "eligible_parameters": 32,
+    "head_parameters": 88,
+    "eligible_parameters": 72,
     "features": 8,
     "upstream_weights_frozen": true,
     "actual_game_experiences": 0,
     "scope": "game and version",
     "max_replay_per_family": 8,
-    "max_replay_total": 32,
+    "max_replay_total": 72,
     "duplicate_window": 128,
-    "checkpoint": "SHA256 and atomic replace, private app directory",
+    "checkpoint": "schema 2; reads schema 1 and zero-extends 48 legacy weights; SHA256 atomic replace",
     "max_priority_adjustment": 30,
     "reward_success": 1,
     "reward_virtual_exchange_success": 0.9,
@@ -309,5 +314,14 @@
     "ttl_ms": 500,
     "max_pending": 1,
     "delivery_is_reward": false
+  },
+  "tactical": {
+    "state": "authorized virtual training port; observed health, ammunition, threat, cover, healing items and hit counter",
+    "initial_policy": "heuristic plus bounded novelty bonus and learned score",
+    "actions": "explicit virtual offers only",
+    "observation_confidence_min": 0.8,
+    "live_adapter": false,
+    "actual_game_experiences": 0,
+    "real_world_control": false
   }
 }

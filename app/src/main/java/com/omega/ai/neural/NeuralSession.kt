@@ -145,6 +145,18 @@ class NeuralSession(context:Context,scope:String?,sessionId:String,port:GamePort
                             if(r.outcome!=Outcome.UNKNOWN)evidence+=Evidence("evidence.A048",if(r.outcome==Outcome.SUCCESS)1f else 0f,1f,"adapter_confirmed_receipt",now)
                         }
                     }
+                    executive?.combatSnapshot()?.let{(stamp,c)->
+                        if(stamp in 0..now && now-stamp<=1_500_000_000L && c.usable()){
+                            fun signal(role:String,index:Int,value:Float?){
+                                if(value!=null){x[index]=value;evidence+=Evidence("evidence.$role",value,c.confidence,"authorized_virtual_combat_state",stamp)}
+                            }
+                            signal("A041",180,c.threatVisible?.let{if(it)1f else 0f})
+                            signal("A046",181,c.health)
+                            signal("A082",182,c.loaded?.let{it.coerceAtMost(100)/100f})
+                            signal("A053",183,c.inCover?.let{if(it)1f else 0f})
+                            signal("A083",184,c.healingItems?.let{it.coerceAtMost(10)/10f})
+                        }
+                    }
                     val perf=metrics.snapshot()
                     perf.p95Ms?.let{latency->
                         x[170]=(latency/1500.0).coerceIn(0.0,1.0).toFloat()
