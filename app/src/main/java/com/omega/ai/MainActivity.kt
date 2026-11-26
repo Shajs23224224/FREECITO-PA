@@ -15,12 +15,15 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import com.omega.ai.capture.ProjectionService
 import com.omega.ai.game.GameBinding
+import com.omega.ai.game.FreeFireLauncher
+import com.omega.core.release.Connection
 
 class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var button: Button
     private val handler = Handler(Looper.getMainLooper())
     private var awaitingConsent = false
+    private var launchMessage:String?=null
     private val tick = object : Runnable { override fun run() { render(); handler.postDelayed(this,500) } }
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
@@ -31,11 +34,11 @@ class MainActivity : Activity() {
         }
         root.addView(ImageView(this).apply { setImageResource(com.omega.ai.R.drawable.ic_omega); contentDescription="Logotipo OMEGA" }, LinearLayout.LayoutParams(dp(104),dp(104)))
         root.addView(label("O M E G A",30f,Color.WHITE))
-        root.addView(label("INTELIGENCIA AGÉNTICA · V1.0",12f,Color.rgb(144,217,235)))
+        root.addView(label("OMEGA · FREE FIRE",12f,Color.rgb(144,217,235)))
         status = label("Sistema inactivo · sin adaptador de juego",16f,Color.WHITE).apply { setPadding(0,dp(24),0,dp(24)) }; root.addView(status)
         button = Button(this).apply { isAllCaps=false; textSize=18f; minHeight=dp(56); setOnClickListener { toggle() } }
         root.addView(button,LinearLayout.LayoutParams(-1,-2))
-        root.addView(label("v1.0.0 · Integración del núcleo",12f,Color.LTGRAY).apply { setPadding(0,dp(16),0,0) })
+        root.addView(label("v1.0.1 · Apertura del juego",12f,Color.LTGRAY).apply { setPadding(0,dp(16),0,0) })
         setContentView(root); render()
     }
     private fun dp(v: Int) = (v*resources.displayMetrics.density+0.5f).toInt()
@@ -53,10 +56,17 @@ class MainActivity : Activity() {
         }
         s.neuralStatus?.let { status.append("\n$it") }
         s.resources?.let { status.append("\n$it") }
-        button.text=if(s.active) "DETENER IA" else "INICIAR IA"
+        if(!s.active && GameBinding.connection()==Connection.UNCONFIGURED){
+            status.text=launchMessage ?: if(FreeFireLauncher.available(this)) "Free Fire disponible · apertura desde OMEGA\nControl y aprendizaje en partida no habilitados" else "Free Fire no encontrado · instala el cliente oficial"
+            button.text="ABRIR FREE FIRE"
+        }else button.text=if(s.active) "DETENER IA" else "INICIAR IA"
         button.isEnabled=!awaitingConsent
     }
     private fun toggle() {
+        if(!RuntimeSession.status().active && GameBinding.connection()==Connection.UNCONFIGURED){
+            launchMessage=if(FreeFireLauncher.open(this)) null else "No se pudo abrir Free Fire. Comprueba que esté instalado desde Google Play."
+            render();return
+        }
         if(RuntimeSession.status().active) {
             stopService(Intent(this,ProjectionService::class.java)); RuntimeSession.stop("user_stop")
         } else if(RuntimeSession.start()) {

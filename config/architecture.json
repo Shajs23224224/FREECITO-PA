@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "status": "compressed_modules_executable_untrained",
   "main": 824,
   "intermediate": 32,
@@ -292,5 +292,12 @@
     "game_adapter": "unconfigured",
     "actual_game_experiences": 0,
     "scope_and_freshness_gate": true
+  },
+  "free_fire": {
+    "package": "com.dts.freefireth",
+    "launch": "Android public launcher intent",
+    "command_adapter": "unconfigured",
+    "capture_enabled": false,
+    "gameplay_validated": false
   }
 }
