@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "1.0.1",
+  "version": "1.0.2",
   "status": "compressed_modules_executable_untrained",
   "main": 824,
   "intermediate": 32,
@@ -299,5 +299,15 @@
     "command_adapter": "unconfigured",
     "capture_enabled": false,
     "gameplay_validated": false
+  },
+  "accessibility": {
+    "transport": "Android AccessibilityService dispatchGesture",
+    "target": "explicit private test adapter only",
+    "public_client_enabled": false,
+    "configured": false,
+    "gesture_max_ms": 500,
+    "ttl_ms": 500,
+    "max_pending": 1,
+    "delivery_is_reward": false
   }
 }

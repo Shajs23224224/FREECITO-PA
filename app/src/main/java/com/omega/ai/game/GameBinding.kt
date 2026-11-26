@@ -12,6 +12,9 @@ interface AuthorizedGameAdapter {
     val memoryScope: String
     /** Owner-provided authorized command port, or null for read-only integration. */
     val commandPort: GamePort? get() = null
+    /** Package of a specifically authorized private test target; null disables touch transport. */
+    val accessibilityTestPackage:String? get()=null
+    fun accessibilityTestScopeConfirmed():Boolean=false
     fun launch(activity: Activity)
     /** True only while the permitted game content is confirmed within capture scope. */
     fun captureScopeConfirmed(): Boolean
@@ -26,6 +29,10 @@ object GameBinding {
     fun canCapture():Boolean = runCatching {
         SessionGate.captureAllowed(connection(),adapter?.captureScopeConfirmed()==true)
     }.getOrDefault(false)
+    fun accessibilityTarget():String? = runCatching {
+        val a=adapter ?: return null
+        a.accessibilityTestPackage?.takeIf{it.isNotBlank() && it!=FreeFireLauncher.PACKAGE && a.accessibilityTestScopeConfirmed() && canCapture()}
+    }.getOrNull()
     fun canCommand(enabled:Boolean,visualNs:Long?,nowNs:Long):Boolean = runCatching {
         SessionGate.commandAllowed(connection(),adapter?.captureScopeConfirmed()==true,enabled,visualNs,nowNs)
     }.getOrDefault(false)
