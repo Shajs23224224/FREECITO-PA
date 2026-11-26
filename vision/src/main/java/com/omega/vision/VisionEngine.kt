@@ -2,7 +2,7 @@ package com.omega.vision
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.Rect
+import android.graphics.RectF
 import android.os.SystemClock
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
@@ -102,7 +102,7 @@ class VisionEngine(context: Context) : AutoCloseable {
         }
     }
     private fun bitmap(pixels: IntArray,w: Int,h: Int)=Bitmap.createBitmap(pixels,w,h,Bitmap.Config.ARGB_8888)
-    private fun normalized(r: Rect,w: Int,h: Int): Box? {
+    private fun normalized(r: RectF,w: Int,h: Int): Box? {
         val l=(r.left.toFloat()/w).coerceIn(0f,1f); val t=(r.top.toFloat()/h).coerceIn(0f,1f)
         val rr=(r.right.toFloat()/w).coerceIn(0f,1f); val bb=(r.bottom.toFloat()/h).coerceIn(0f,1f)
         return if(rr>l && bb>t) Box(l,t,rr,bb) else null
@@ -132,7 +132,7 @@ class VisionEngine(context: Context) : AutoCloseable {
         try {
             val result=Tasks.await(client.process(InputImage.fromBitmap(bmp,0)))
             return result.textBlocks.flatMap { it.lines }.take(100).map { l ->
-                TextLine(l.text.take(256),l.boundingBox?.let { normalized(it,w,h) })
+                TextLine(l.text.take(256),l.boundingBox?.let { normalized(RectF(it),w,h) })
             }
         } finally { bmp.recycle() }
     }
