@@ -47,7 +47,7 @@ object RuntimeSession {
     @Synchronized fun beginCapture(): Boolean {
         if (engine?.observe() != true) return false
         vision=VisionEngine(app)
-        capture = true; message = "Observación autorizada · Fase 3"; return true
+        capture = true; message = "Observación autorizada · Fase 4"; return true
     }
     @Synchronized fun submit(buffer: ByteBuffer, w: Int, h: Int, row: Int, pixel: Int, ts: Long): Boolean {
         if (!capture || engine?.submit(buffer,w,h,row,pixel,ts) != true) return false

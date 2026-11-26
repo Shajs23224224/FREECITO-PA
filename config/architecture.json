@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "0.3.0",
+  "version": "0.4.0",
   "status": "compressed_modules_executable_untrained",
   "main": 824,
   "intermediate": 32,
@@ -124,7 +124,7 @@
   ],
   "profile_default": "mobile_shared_rank4",
   "implemented_networks": 858,
-  "implemented_agents": 0,
+  "implemented_agents": 160,
   "training_source": "authorized_live_3d_game_only",
   "game_adapter": "unconfigured",
   "separate_trainer": false,
@@ -153,5 +153,18 @@
     "android_execution": "pending",
     "policy": "none",
     "online_training": "not implemented"
+  },
+  "agent_specialization_status": "role-specific evidence slots; common evaluator; 8 vision evidence slots available; full domain logic pending",
+  "multi_agent": {
+    "teams": 16,
+    "roles_per_team": 10,
+    "registered_and_executable_roles": 160,
+    "fully_specialized_agents": 0,
+    "live_evidence_slots": 8,
+    "default_active_roles": 4,
+    "max_active_roles": 8,
+    "history_rounds": 32,
+    "neural_max_distinct_modules": 26,
+    "decision": "evidence validation only; no action policy"
   }
 }
