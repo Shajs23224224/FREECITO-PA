@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicReference
 class NeuralSession(context:Context,scope:String?,sessionId:String,port:GamePort?=null) : AutoCloseable {
     private val learner=scope?.takeIf{port!=null && port.scope==it}?.let{game->
         val hash=MessageDigest.getInstance("SHA-256").digest(game.toByteArray(Charsets.UTF_8)).joinToString(""){ "%02x".format(it.toInt() and 255) }
-        ContinuousPolicy(game,File(context.filesDir,"learning/$hash.bin"))
+        ContinuousPolicy(game,File(context.filesDir,"learning/rank17-gated-v1/$hash.bin"))
     }
     private val executive=port?.takeIf{scope!=null && it.scope==scope}?.let{Executive(it,sessionId,{SystemClock.elapsedRealtimeNanos()},policy=learner,permissionGate={GameBinding.canCapture()&&!closed.get()})}
     private val store=scope?.let{CognitiveStore(context)}
@@ -39,7 +39,7 @@ class NeuralSession(context:Context,scope:String?,sessionId:String,port:GamePort
     private val worker=Executors.newSingleThreadExecutor()
     private val closed=AtomicBoolean(false)
     private val busy=AtomicBoolean(false)
-    private val message=AtomicReference("858 módulos · 160 roles · política incremental")
+    private val message=AtomicReference("858 módulos · 3.111.624 parámetros · 160 roles")
     private var last=-1L
     private var seen=-1L
     private val metrics=CycleMetrics()

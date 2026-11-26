@@ -1,0 +1,2 @@
+PASS: 858 executable modules, rank 17, eight residual gates per module, 3111536 core parameters, gradient isolation and restore
+core=3111536 head=88 total=3111624 increase=50.006363506639254%

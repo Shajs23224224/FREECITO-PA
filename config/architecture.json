@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "1.0.3",
+  "version": "1.0.4",
   "status": "compressed_modules_executable_untrained",
   "main": 824,
   "intermediate": 32,
@@ -122,7 +122,7 @@
       "agents": 10
     }
   ],
-  "profile_default": "mobile_shared_rank4",
+  "profile_default": "mobile_shared_rank17_gated",
   "implemented_networks": 858,
   "implemented_agents": 160,
   "training_source": "authorized_live_3d_game_only",
@@ -141,18 +141,22 @@
   "implemented_dense_independent_networks": 0,
   "trained_networks": 0,
   "neural": {
-    "rank": 4,
+    "rank": 17,
     "precision": "FP32",
-    "shared_weights": 262144,
-    "unique_parameters": 2074240,
-    "independent_adapter_parameters": 1812096,
+    "shared_weights": 1114112,
+    "unique_parameters": 3111536,
+    "independent_adapter_parameters": 1997424,
     "output_bias_update_parameters": 1757184,
     "default_active_modules": 8,
     "maximum_active_modules": 14,
     "routing": "deterministic domain routing; untrained",
     "android_execution": "pending",
     "policy": "none",
-    "online_training": "only contextual bandit output head when authorized receipts arrive; 858 upstream modules frozen and untrained"
+    "online_training": "only contextual bandit output head when authorized receipts arrive; 858 upstream modules frozen and untrained",
+    "residual_gates_per_module": 8,
+    "residual_gate_parameters": 6864,
+    "policy_embedding_version": "rank17-gated-v1",
+    "previous_policy_checkpoint": "preserved in legacy path; not reused with incompatible embedding"
   },
   "agent_specialization_status": "35 conditional evidence slots; common evaluator",
   "multi_agent": {
@@ -323,5 +327,13 @@
     "live_adapter": false,
     "actual_game_experiences": 0,
     "real_world_control": false
+  },
+  "total_unique_core_and_policy_parameters": 3111624,
+  "parameter_expansion": {
+    "baseline": 2074328,
+    "added": 1037296,
+    "percent": 50.006363506639254,
+    "fp32_weight_bytes": 12446496,
+    "pretrained_vision_excluded": true
   }
 }

@@ -1,4 +1,4 @@
-# OMEGA v1.0.3 — núcleo integrado (candidato técnico)
+# OMEGA v1.0.4 — núcleo integrado (candidato técnico)
 
 Infraestructura Android y núcleo nativo para la futura IA agéntica de videojuegos Shooter 3D autorizados. Incluye adaptadores de modelos perceptivos preentrenados y un núcleo factorizado no entrenado. No hay política de juego entrenada ni adaptador real conectado. El código nativo y JNI se han probado en Linux; la compilación y las pruebas de Android requieren verificación.
 
@@ -87,3 +87,7 @@ Transporte táctil Android experimental acotado a un adaptador de prueba privado
 ## Política táctica experimental
 
 Contexto virtual confirmado por GamePort, cinco familias nuevas, política inicial y aprendizaje incremental con 88 pesos. No se conecta el cliente público. Véase `docs/TACTICAL.md`.
+
+## Ampliación neuronal v1.0.4
+
+Rango 17, ocho compuertas residuales independientes por módulo, 3.111.536 parámetros del núcleo más 88 de la política. Total 3.111.624 (+50,006 %). Ver `docs/RANK17.md`.
