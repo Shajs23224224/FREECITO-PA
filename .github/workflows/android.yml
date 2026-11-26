@@ -14,26 +14,37 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - uses: android-actions/setup-android@v3
-      - name: Install pinned Android toolchain
-        run: sdkmanager 'platforms;android-35' 'build-tools;34.0.0' 'ndk;27.0.12077973' 'cmake;3.22.1'
+      - name: Install pinned Android toolchain using runner SDK
+        run: |
+          test -n "$ANDROID_HOME"
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -path '*/bin/sdkmanager' -type f | sort -V | tail -1)
+          test -x "$SDKMANAGER"
+          "$SDKMANAGER" 'platforms;android-35' 'build-tools;34.0.0' 'ndk;27.0.12077973' 'cmake;3.22.1'
+      - name: Install Kotlin CLI for host regression tests
+        run: |
+          curl --fail --location --retry 3 https://github.com/JetBrains/kotlin/releases/download/v2.0.21/kotlin-compiler-2.0.21.zip -o /tmp/kotlin.zip
+          unzip -q /tmp/kotlin.zip -d /tmp/omega-kotlin
+          echo /tmp/omega-kotlin/kotlinc/bin >> "$GITHUB_PATH"
       - name: Host C++ tests and architecture checks
         run: |
-          cmake -S core-native/src/main/cpp -B build/host -DCMAKE_BUILD_TYPE=Debug
-          cmake --build build/host --parallel 2
-          ctest --test-dir build/host --output-on-failure
-          python3 scripts/verify_manifest.py
+          bash scripts/test-host.sh
+          bash scripts/test-vision-host.sh
+          bash scripts/test-neural-host.sh
+          bash scripts/test-agents-host.sh
+          bash scripts/test-world-host.sh
+      - name: Fetch pretrained vision assets
+        run: bash scripts/fetch-vision-models.sh
       - name: Android build and lint
         run: gradle --no-daemon :app:assembleDebug :app:lintDebug :app:testDebugUnitTest --stacktrace
       - name: Verify artifact
         run: |
           mkdir -p dist
-          cp app/build/outputs/apk/debug/app-debug.apk dist/OMEGA-v0.1.0-debug.apk
-          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose dist/OMEGA-v0.1.0-debug.apk
-          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging dist/OMEGA-v0.1.0-debug.apk
+          cp app/build/outputs/apk/debug/app-debug.apk dist/OMEGA-v0.5.0-debug.apk
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose dist/OMEGA-v0.5.0-debug.apk
+          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging dist/OMEGA-v0.5.0-debug.apk
           (cd dist && sha256sum *.apk > SHA256SUMS.txt)
       - uses: actions/upload-artifact@v4
         with:
-          name: OMEGA-v0.1.0-debug
+          name: OMEGA-v0.5.0-debug
           path: dist/
           if-no-files-found: error

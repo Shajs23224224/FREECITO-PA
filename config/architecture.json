@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "version": "0.1.0",
-  "status": "planned_not_materialized",
+  "version": "0.5.0",
+  "status": "compressed_modules_executable_untrained",
   "main": 824,
   "intermediate": 32,
   "final": 2,
@@ -122,10 +122,73 @@
       "agents": 10
     }
   ],
-  "profile_default": "mobile_compressed_planned",
-  "implemented_networks": 0,
-  "implemented_agents": 0,
+  "profile_default": "mobile_shared_rank4",
+  "implemented_networks": 858,
+  "implemented_agents": 160,
   "training_source": "authorized_live_3d_game_only",
   "game_adapter": "unconfigured",
-  "separate_trainer": false
+  "separate_trainer": false,
+  "vision": {
+    "module": "vision",
+    "detector": "EfficientDet-Lite0 general-domain",
+    "ocr": "ML Kit Latin bundled",
+    "depth": "Depth Anything V2 Small ONNX quantized",
+    "tracking": "visible IoU association",
+    "model_execution": "Android not yet verified",
+    "game_adapter": "unconfigured",
+    "auxiliary_models_not_counted_in_858": true
+  },
+  "implemented_dense_independent_networks": 0,
+  "trained_networks": 0,
+  "neural": {
+    "rank": 4,
+    "precision": "FP32",
+    "shared_weights": 262144,
+    "unique_parameters": 2074240,
+    "independent_adapter_parameters": 1812096,
+    "output_bias_update_parameters": 1757184,
+    "default_active_modules": 8,
+    "maximum_active_modules": 14,
+    "routing": "deterministic domain routing; untrained",
+    "android_execution": "pending",
+    "policy": "none",
+    "online_training": "not implemented"
+  },
+  "agent_specialization_status": "17 evidence slots available when authorized perception is active; common evaluator; full specialization pending",
+  "multi_agent": {
+    "teams": 16,
+    "roles_per_team": 10,
+    "registered_and_executable_roles": 160,
+    "fully_specialized_agents": 0,
+    "live_evidence_slots": 17,
+    "default_active_roles": 4,
+    "max_active_roles": 8,
+    "history_rounds": 32,
+    "neural_max_distinct_modules": 26,
+    "decision": "evidence validation only; no action policy"
+  },
+  "world": {
+    "geometry": "image-relative 2.5D, no metric pose",
+    "depth_alignment": "exact frame match only",
+    "belief": "uncalibrated temporal confidence fusion with exponential decay",
+    "place_recognition": "Jaccard signature hypothesis",
+    "edges": "temporal adjacency only",
+    "memory_kinds": [
+      "IMMEDIATE",
+      "WORKING",
+      "EPISODIC",
+      "SEMANTIC",
+      "PROCEDURAL",
+      "SPATIAL",
+      "STRATEGIC",
+      "PROSPECTIVE"
+    ],
+    "automatic_kinds": 5,
+    "backend": "private Android SQLite, schema 1",
+    "max_per_kind_scope": 256,
+    "max_total": 4096,
+    "scope": "authorized game and version",
+    "training": "not implemented",
+    "android_runtime": "pending"
+  }
 }
