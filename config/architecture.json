@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "0.9.0",
+  "version": "1.0.0",
   "status": "compressed_modules_executable_untrained",
   "main": 824,
   "intermediate": 32,
@@ -280,5 +280,17 @@
     "quantization": "preexisting quantized depth model retained; FP32 upstream unchanged",
     "device_benchmark": "pending",
     "energy": "battery percentage/temperature and power saver only; no watts or joules"
+  },
+  "release": {
+    "classification": "integrated core technical candidate; no playable game adapter",
+    "signature": "debug only; CI verifies",
+    "abi": "arm64-v8a",
+    "minimum_android_api": 26,
+    "gameplay_validated": false,
+    "physical_device_validated": false,
+    "source_archive": "git archive",
+    "game_adapter": "unconfigured",
+    "actual_game_experiences": 0,
+    "scope_and_freshness_gate": true
   }
 }

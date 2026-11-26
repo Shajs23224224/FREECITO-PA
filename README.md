@@ -1,6 +1,6 @@
-# OMEGA v0.9.0 — Fase 9 (candidato)
+# OMEGA v1.0.0 — núcleo integrado (candidato técnico)
 
-Infraestructura Android y núcleo nativo para la futura IA agéntica de videojuegos Shooter 3D autorizados. No contiene modelos entrenados ni política autónoma de juego. El código nativo y JNI se han probado en Linux; la compilación y las pruebas de Android requieren verificación.
+Infraestructura Android y núcleo nativo para la futura IA agéntica de videojuegos Shooter 3D autorizados. Incluye adaptadores de modelos perceptivos preentrenados y un núcleo factorizado no entrenado. No hay política de juego entrenada ni adaptador real conectado. El código nativo y JNI se han probado en Linux; la compilación y las pruebas de Android requieren verificación.
 
 ## Función de esta versión
 
@@ -71,3 +71,7 @@ Bandido contextual de 48 pesos (32 habilitados) sobre inventario y característi
 ## Fase 9: metacognición
 
 Supervisor con cuatro perfiles de carga, latencia p95, tasa de fallos, telemetría pública Android, presupuesto dinámico, suspensión de aprendizaje y detención crítica. Pruebas y benchmark JVM: `bash scripts/test-meta-host.sh`. Métricas de teléfono, energía física y ejecución real pendientes. Véase `docs/FASE-9.md`.
+
+## Fase 10: integración y empaquetado
+
+Candidato técnico del núcleo integrado, no producto capaz de jugar por sí mismo. Comprobación explícita de conexión, autorización y frescura; prueba conjunta de inferencia, supervisor, ejecutivo y checkpoint. CI verifica APK de depuración, metadatos, modelos, JNI, SHA256 y archivo de fuentes exacto. Consulte `docs/FASE-10.md` y `docs/GAME-PORT.md`. Sin entrenador ni simulador.

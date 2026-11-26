@@ -31,11 +31,11 @@ class MainActivity : Activity() {
         }
         root.addView(ImageView(this).apply { setImageResource(com.omega.ai.R.drawable.ic_omega); contentDescription="Logotipo OMEGA" }, LinearLayout.LayoutParams(dp(104),dp(104)))
         root.addView(label("O M E G A",30f,Color.WHITE))
-        root.addView(label("INTELIGENCIA AGÉNTICA · FASE 9",12f,Color.rgb(144,217,235)))
-        status = label("Sistema inactivo",16f,Color.WHITE).apply { setPadding(0,dp(24),0,dp(24)) }; root.addView(status)
+        root.addView(label("INTELIGENCIA AGÉNTICA · V1.0",12f,Color.rgb(144,217,235)))
+        status = label("Sistema inactivo · sin adaptador de juego",16f,Color.WHITE).apply { setPadding(0,dp(24),0,dp(24)) }; root.addView(status)
         button = Button(this).apply { isAllCaps=false; textSize=18f; minHeight=dp(56); setOnClickListener { toggle() } }
         root.addView(button,LinearLayout.LayoutParams(-1,-2))
-        root.addView(label("v0.9.0 · Metacognición adaptativa",12f,Color.LTGRAY).apply { setPadding(0,dp(16),0,0) })
+        root.addView(label("v1.0.0 · Integración del núcleo",12f,Color.LTGRAY).apply { setPadding(0,dp(16),0,0) })
         setContentView(root); render()
     }
     private fun dp(v: Int) = (v*resources.displayMetrics.density+0.5f).toInt()

@@ -2,6 +2,8 @@ package com.omega.ai.game
 
 import android.app.Activity
 import com.omega.core.executive.GamePort
+import com.omega.core.release.Connection
+import com.omega.core.release.SessionGate
 
 /** Must be implemented using an explicitly permitted game integration. A package name alone is insufficient. */
 interface AuthorizedGameAdapter {
@@ -17,5 +19,14 @@ interface AuthorizedGameAdapter {
 object GameBinding {
     // No game or authorization was supplied. Deliberately fail closed; a concrete authorized title and API are required.
     val adapter: AuthorizedGameAdapter? = null
-    fun canCapture(): Boolean = runCatching { adapter?.let{it.memoryScope.length in 1..200 && it.captureScopeConfirmed()} == true }.getOrDefault(false)
+    fun connection():Connection = runCatching {
+        val a=adapter
+        SessionGate.connection(a?.memoryScope,a?.commandPort?.scope)
+    }.getOrDefault(Connection.INVALID)
+    fun canCapture():Boolean = runCatching {
+        SessionGate.captureAllowed(connection(),adapter?.captureScopeConfirmed()==true)
+    }.getOrDefault(false)
+    fun canCommand(enabled:Boolean,visualNs:Long?,nowNs:Long):Boolean = runCatching {
+        SessionGate.commandAllowed(connection(),adapter?.captureScopeConfirmed()==true,enabled,visualNs,nowNs)
+    }.getOrDefault(false)
 }

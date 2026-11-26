@@ -11,6 +11,7 @@ import com.omega.ai.neural.NeuralSession
 import com.omega.ai.game.GameBinding
 import com.omega.ai.meta.ResourceProbe
 import com.omega.core.meta.*
+import com.omega.core.release.Connection
 import android.os.SystemClock
 import java.nio.ByteBuffer
 import java.util.UUID
@@ -44,24 +45,26 @@ object RuntimeSession {
         var neuralCandidate: NeuralSession? = null
         return try {
             candidate = NativeEngine(); check(candidate.start())
+            val connection=GameBinding.connection()
+            check(connection!=Connection.INVALID)
             neuralCandidate = NeuralSession(app,GameBinding.adapter?.memoryScope,session,GameBinding.adapter?.commandPort)
             probe=ResourceProbe(app);governor=MetaGovernor();budget=MetaGovernor.budget(Load.NORMAL);sampledAt=-1L;submittedAt=-1L;resourceStatus=null
             store.begin(session)
             neural = neuralCandidate
             engine = candidate; id = session; capture = false
-            message = "Núcleo activo · juego sin integrar"
+            message = if(connection==Connection.UNCONFIGURED) "Núcleo activo · sin adaptador de juego; no juega ni aprende" else "Núcleo activo · esperando autorización de captura"
             true
         } catch (t: Throwable) {
             neuralCandidate?.close(); candidate?.close(); message = "No se pudo iniciar el núcleo"; Log.e("OMEGA", "start", t); false
         }
     }
     @Synchronized fun beginCapture(): Boolean {
-        if (!resourceHealthy() || engine?.observe() != true) return false
+        if (!GameBinding.canCapture() || !resourceHealthy() || engine?.observe() != true) return false
         vision=VisionEngine(app).also{it.configureLoad(budget.visionMultiplier,budget.ocr,budget.depth)}
-        capture = true; message = "Observación autorizada · Fase 9"; return true
+        capture = true; message = "Observación autorizada · v1.0.0"; return true
     }
     @Synchronized fun submit(buffer: ByteBuffer, w: Int, h: Int, row: Int, pixel: Int, ts: Long): Boolean {
-        if(!capture||!resourceHealthy())return false
+        if(!capture||!GameBinding.canCapture()||!resourceHealthy())return false
         val now=SystemClock.elapsedRealtimeNanos()
         if(submittedAt>=0&&now-submittedAt<100_000_000L*budget.visionMultiplier)return false
         if(engine?.submit(buffer,w,h,row,pixel,ts)!=true)return false

@@ -30,7 +30,7 @@ interface GamePort {
     /** Revoke outstanding commands and session permission. Must be safe on repeated calls. */
     fun stop()
 }
-class Executive(private val port:GamePort,private val session:String,private val clock:()->Long,private val ttl:Long=2_000_000_000L,private val policy:AdaptivePolicy?=null) : AutoCloseable {
+class Executive(private val port:GamePort,private val session:String,private val clock:()->Long,private val ttl:Long=2_000_000_000L,private val policy:AdaptivePolicy?=null,private val permissionGate:()->Boolean={true}) : AutoCloseable {
     private data class Pending(val cmd:Command,val offer:Offer,val before:Map<String,Int>,val features:List<Float>)
     private var pending:Pending?=null
     private var last=-1L
@@ -44,7 +44,7 @@ class Executive(private val port:GamePort,private val session:String,private val
         return try { cycle(contextReady,embedding) } catch(e:Exception) { halt();Tick("adapter_error") }
     }
     private fun cycle(contextReady:Boolean,embedding:FloatArray?):Tick {
-        if(!port.authorized()||port.scope!=scope){halt();return Tick("unauthorized")}
+        if(!permissionGate()||!port.authorized()||port.scope!=scope){halt();return Tick("unauthorized")}
         val now=clock();require(now>=0 && now<=Long.MAX_VALUE-ttl)
         val old=pending
         val state=port.observe()
@@ -69,7 +69,7 @@ class Executive(private val port:GamePort,private val session:String,private val
                 val outcome=if(receipt.outcome==Outcome.SUCCESS&&!verified)Outcome.UNKNOWN else receipt.outcome
                 pending=null
                 if(outcome==Outcome.UNKNOWN)halt()
-                else if(port.authorized() && port.scope==scope){
+                else if(permissionGate() && port.authorized() && port.scope==scope){
                     val reward=if(outcome==Outcome.FAILURE)-1f else if(old.offer.family==Family.EXCHANGE_VIRTUAL).9f else 1f
                     policy?.confirmed(Experience(old.cmd.id,scope,old.offer.family,old.features,reward))
                 }else halt()
@@ -93,17 +93,23 @@ class Executive(private val port:GamePort,private val session:String,private val
                 Family.INSPECT -> if(a.cost==0)30 else -1
             }
         }
+        val e=embedding?.takeIf{it.size==2048&&it.all{v->v.isFinite()}}
+        fun mean(start:Int):Float {
+            if(e==null)return 0f
+            var sum=0.0
+            for(i in start until start+512)sum+=e[i].coerceIn(-1f,1f)
+            return (sum/512.0).toFloat()
+        }
+        val m0=mean(0);val m1=mean(512);val m2=mean(1024)
         fun features(a:Offer):List<Float>{
             val r=stock[a.resource]
             val deficit=if(r!=null&&r.desired>0)((r.desired-r.count).toFloat()/r.desired).coerceIn(0f,1f) else 0f
             val cost=if(a.cost==0)0f else (a.cost.toFloat()/(stock[a.costResource]?.count?:1).coerceAtLeast(1)).coerceIn(0f,1f)
-            val e=embedding?.takeIf{it.size==2048&&it.all{v->v.isFinite()}}
-            fun mean(start:Int)=e?.let{v->(start until start+512).map{v[it].coerceIn(-1f,1f)}.average().toFloat()}?:0f
-            return listOf(1f,deficits/64f,state.offers.size/32f,deficit,cost,mean(0),mean(512),mean(1024))
+            return listOf(1f,deficits/64f,state.offers.size/32f,deficit,cost,m0,m1,m2)
         }
         val offer=state.offers.map{it to priority(it)}.filter{it.second>=0}.map{(a,p)->a to (p+(policy?.adjustment(a.family,features(a))?:0f).let{if(it.isFinite())it.coerceIn(-30f,30f) else 0f})}.sortedWith(compareByDescending<Pair<Offer,Float>>{it.second}.thenBy{it.first.id}).firstOrNull()?.first ?: return Tick("no_eligible_offer",offered=state.offers.size,missing=deficits)
         val dispatchTime=clock()
-        if(dispatchTime<now || dispatchTime-state.observedNs>=ttl || !port.authorized() || port.scope!=scope){halt();return Tick("authorization_or_freshness_lost")}
+        if(dispatchTime<now || dispatchTime-state.observedNs>=ttl || !permissionGate() || !port.authorized() || port.scope!=scope){halt();return Tick("authorization_or_freshness_lost")}
         val cmd=Command("$session:${++count}",scope,state.sequence,offer.id,state.observedNs+ttl)
         // Set pending before calling port: exceptions must never cause a retry of uncertain execution.
         pending=Pending(cmd,offer,stock.mapValues{it.value.count},features(offer))

@@ -3,6 +3,7 @@ package com.omega.ai.neural
 import android.os.SystemClock
 import android.content.Context
 import com.omega.ai.persistence.CognitiveStore
+import com.omega.ai.game.GameBinding
 import com.omega.core.world.*
 import com.omega.core.reasoning.*
 import com.omega.core.executive.*
@@ -25,7 +26,7 @@ class NeuralSession(context:Context,scope:String?,sessionId:String,port:GamePort
         val hash=MessageDigest.getInstance("SHA-256").digest(game.toByteArray(Charsets.UTF_8)).joinToString(""){ "%02x".format(it.toInt() and 255) }
         ContinuousPolicy(game,File(context.filesDir,"learning/$hash.bin"))
     }
-    private val executive=port?.takeIf{scope!=null && it.scope==scope}?.let{Executive(it,sessionId,{SystemClock.elapsedRealtimeNanos()},policy=learner)}
+    private val executive=port?.takeIf{scope!=null && it.scope==scope}?.let{Executive(it,sessionId,{SystemClock.elapsedRealtimeNanos()},policy=learner,permissionGate={GameBinding.canCapture()&&!closed.get()})}
     private val store=scope?.let{CognitiveStore(context)}
     private val memory=store?.let{CognitiveMemory(requireNotNull(scope),it)}
     private val world=memory?.let{WorldModel(it,sessionId)}
@@ -160,7 +161,7 @@ class NeuralSession(context:Context,scope:String?,sessionId:String,port:GamePort
                     if(activeBudget.roles==0||closed.get())return@execute
                     val p=board.deliberate(frame,now,x,evidence,(0..15).toList(),activeBudget.roles)
                     // F01/F02 remain diagnostic embeddings. Authorization, fresh state and symbolic context gate the command.
-                    val tick=if(closed.get())null else executive?.tick(budget.commands && selected!=null && result.facts["visual"]==Truth.TRUE && p.execution.all{it.isFinite()},p.execution)
+                    val tick=if(closed.get())null else executive?.tick(GameBinding.canCommand(budget.commands,t?.receivedNs,SystemClock.elapsedRealtimeNanos()) && selected!=null && result.facts["visual"]==Truth.TRUE && p.execution.all{it.isFinite()},p.execution)
                     priorTick=tick
                     if(memory!=null && tick!=null && !closed.get()){
                         val wall=System.currentTimeMillis()
