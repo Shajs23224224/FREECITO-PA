@@ -41,7 +41,12 @@ class MainActivity : Activity() {
     private fun dp(v: Int) = (v*resources.displayMetrics.density+0.5f).toInt()
     private fun label(t:String,s:Float,c:Int) = TextView(this).apply { text=t; textSize=s; setTextColor(c); gravity=Gravity.CENTER }
     private fun render() {
-        val s=RuntimeSession.status()
+        var s=RuntimeSession.status()
+        // Also show resource telemetry in the idle-core session, even without a game adapter.
+        if(s.active && !s.capturing){
+            if(!RuntimeSession.resourceHealthy())RuntimeSession.stop("resource_stop")
+            s=RuntimeSession.status()
+        }
         status.text = if(s.capturing) "${s.message}\nFotogramas procesados: ${s.stats?.processed ?: 0}" else s.message
         if (s.capturing) s.perception?.let { p ->
             status.append("\nVisor: ${p.detectorStatus} · OCR: ${p.ocrStatus} · profundidad: ${p.depthStatus}")

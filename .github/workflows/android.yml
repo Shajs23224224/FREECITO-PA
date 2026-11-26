@@ -26,7 +26,10 @@ jobs:
           unzip -q /tmp/kotlin.zip -d /tmp/omega-kotlin
           echo /tmp/omega-kotlin/kotlinc/bin >> "$GITHUB_PATH"
       - name: Host C++ tests and architecture checks
+        shell: bash
         run: |
+          set -o pipefail
+          mkdir -p build
           bash scripts/test-host.sh
           bash scripts/test-vision-host.sh
           bash scripts/test-neural-host.sh

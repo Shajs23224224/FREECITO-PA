@@ -24,3 +24,5 @@ MetaSmoke (Kotlin/JVM): perfiles, histéresis, detención enclavada, CPU, temper
 | 14 | 10,25 | 11,76 |
 
 Es una medición del método NeuralEngine.infer con datos de prueba, no de todo Blackboard, visor, aplicación Android ni partida. No se usan los datos para entrenamiento. El entorno móvil, latencia integrada, memoria nativa, temperatura y consumo físico siguen sin verificar. CI ejecuta pruebas y benchmark y empaqueta registro junto con APK si compila. Fase 7 CI 45903090511 aprobada; fase 8 CI 45903480982 aún compilando durante desarrollo de esta fase. 
+
+La pantalla también consulta la telemetría mientras el núcleo está activo sin adaptador. La configuración CI usa pipefail para impedir que tee oculte un fallo del benchmark. Las nuevas señales y el presupuesto pueden cambiar las representaciones F02 aunque los pesos FP32 no cambien; no se garantiza equivalencia de una política entrenada con otra versión. No hay experiencias reales guardadas a la fecha.
