@@ -12,4 +12,5 @@ a=x['multi_agent']; assert a['teams']*a['roles_per_team']==160 and a['registered
 w=x['world']; assert len(set(w['memory_kinds']))==8 and w['automatic_kinds']==8 and w['max_total']==4096
 r=x['reasoning']; assert r['max_plans']==16 and r['max_steps']==8 and not r['training']
 e=x['executive']; assert e['max_in_flight']==1 and not e['real_money'] and not e['actual_game_execution']
+l=x['learning']; assert l['head_parameters']==48 and l['eligible_parameters']==32 and l['actual_game_experiences']==0 and not l['training_separate']
 print('PASS: architecture manifest, counts, non-overlapping domain ranges, no false implementation claims')

@@ -6,6 +6,9 @@ import com.omega.ai.persistence.CognitiveStore
 import com.omega.core.world.*
 import com.omega.core.reasoning.*
 import com.omega.core.executive.*
+import com.omega.core.learning.ContinuousPolicy
+import java.io.File
+import java.security.MessageDigest
 import java.util.ArrayDeque
 import com.omega.core.neural.NeuralEngine
 import com.omega.core.agents.AgentBoard
@@ -17,7 +20,11 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** Perception and symbolic coordination; optional owner-authorized command port. Untrained embeddings do not dispatch commands. */
 class NeuralSession(context:Context,scope:String?,sessionId:String,port:GamePort?=null) : AutoCloseable {
-    private val executive=port?.takeIf{scope!=null && it.scope==scope}?.let{Executive(it,sessionId,{SystemClock.elapsedRealtimeNanos()})}
+    private val learner=scope?.takeIf{port!=null && port.scope==it}?.let{game->
+        val hash=MessageDigest.getInstance("SHA-256").digest(game.toByteArray(Charsets.UTF_8)).joinToString(""){ "%02x".format(it.toInt() and 255) }
+        ContinuousPolicy(game,File(context.filesDir,"learning/$hash.bin"))
+    }
+    private val executive=port?.takeIf{scope!=null && it.scope==scope}?.let{Executive(it,sessionId,{SystemClock.elapsedRealtimeNanos()},policy=learner)}
     private val store=scope?.let{CognitiveStore(context)}
     private val memory=store?.let{CognitiveMemory(requireNotNull(scope),it)}
     private val world=memory?.let{WorldModel(it,sessionId)}
@@ -30,7 +37,7 @@ class NeuralSession(context:Context,scope:String?,sessionId:String,port:GamePort
     private val worker=Executors.newSingleThreadExecutor()
     private val closed=AtomicBoolean(false)
     private val busy=AtomicBoolean(false)
-    private val message=AtomicReference("858 módulos · 160 roles · sin entrenar")
+    private val message=AtomicReference("858 módulos · 160 roles · política incremental")
     private var last=-1L
     private var seen=-1L
     private var priorTick:Tick?=null
@@ -130,7 +137,7 @@ class NeuralSession(context:Context,scope:String?,sessionId:String,port:GamePort
                     }
                     val p=board.deliberate(frame,now,x,evidence,(0..15).toList(),4)
                     // F01/F02 remain diagnostic embeddings. Authorization, fresh state and symbolic context gate the command.
-                    val tick=if(closed.get())null else executive?.tick(selected!=null && result.facts["visual"]==Truth.TRUE && p.execution.all{it.isFinite()})
+                    val tick=if(closed.get())null else executive?.tick(selected!=null && result.facts["visual"]==Truth.TRUE && p.execution.all{it.isFinite()},p.execution)
                     priorTick=tick
                     if(memory!=null && tick!=null && !closed.get()){
                         val wall=System.currentTimeMillis()
@@ -142,7 +149,7 @@ class NeuralSession(context:Context,scope:String?,sessionId:String,port:GamePort
                         }
                         memory.consolidate(records)
                     }
-                    if(!closed.get())message.set("Blackboard: ${p.proposals.size} roles · ${p.activeModules.size} módulos · ${p.selected.size} evidencias · $places firmas espaciales · plan: ${selected?.id?:"none"} · ejecutivo: ${tick?.status?:"sin adaptador"}")
+                    if(!closed.get())message.set("Blackboard: ${p.proposals.size} roles · ${p.activeModules.size} módulos · ${p.selected.size} evidencias · $places firmas espaciales · plan: ${selected?.id?:"none"} · ejecutivo: ${tick?.status?:"sin adaptador"} · ${learner?.stats()?:"aprendizaje inactivo"}")
                 }
             } catch(e:Exception){if(!closed.get())message.set("Inferencia no disponible")}
             finally {busy.set(false)}
