@@ -1,4 +1,4 @@
-# OMEGA v1.0.0 — núcleo integrado (candidato técnico)
+# OMEGA v1.0.1 — núcleo integrado (candidato técnico)
 
 Infraestructura Android y núcleo nativo para la futura IA agéntica de videojuegos Shooter 3D autorizados. Incluye adaptadores de modelos perceptivos preentrenados y un núcleo factorizado no entrenado. No hay política de juego entrenada ni adaptador real conectado. El código nativo y JNI se han probado en Linux; la compilación y las pruebas de Android requieren verificación.
 
@@ -75,3 +75,7 @@ Supervisor con cuatro perfiles de carga, latencia p95, tasa de fallos, telemetr�
 ## Fase 10: integración y empaquetado
 
 Candidato técnico del núcleo integrado, no producto capaz de jugar por sí mismo. Comprobación explícita de conexión, autorización y frescura; prueba conjunta de inferencia, supervisor, ejecutivo y checkpoint. CI verifica APK de depuración, metadatos, modelos, JNI, SHA256 y archivo de fuentes exacto. Consulte `docs/FASE-10.md` y `docs/GAME-PORT.md`. Sin entrenador ni simulador.
+
+## Free Fire (v1.0.1)
+
+Apertura del cliente Android mediante el único botón cuando no existe adaptador. No se inicia captura ni aprendizaje por esta ruta. Véase `docs/FREE-FIRE.md`.

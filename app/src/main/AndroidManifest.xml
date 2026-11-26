@@ -1,6 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <queries>
+        <package android:name="com.dts.freefireth" />
+    </queries>
     <application android:name=".OmegaApp" android:label="OMEGA" android:icon="@drawable/ic_omega" android:theme="@style/AppTheme" android:allowBackup="false" android:supportsRtl="true">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
