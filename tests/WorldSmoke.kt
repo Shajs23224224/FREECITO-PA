@@ -19,5 +19,11 @@ fun main(){
     val third=world.observe(Scene(3,3,104,listOf(a.copy(label="wall"),b.copy(label="tree")),null));check(third.priorPlace==first.place&&third.place!=first.place)
     check(runCatching{world.observe(Scene(3,4,105,listOf(a),null))}.isFailure)
     check(world.observe(Scene(4,4,106,emptyList(),null)).entities.isEmpty())
-    println("PASS: eight memory kinds, scoped recall, scene-relative relations, depth missing, place hypotheses, graph transitions, no invented skills, frame validation")
+    val smooth=WorldModel(m,"smooth")
+    smooth.observe(Scene(1,1,107,listOf(a),null))
+    val low=smooth.observe(Scene(2,2,108,listOf(a.copy(confidence=.2f)),null)).entities.single().belief
+    check(low>.2f && low<.8f)
+    val relabel=smooth.observe(Scene(3,3,109,listOf(a.copy(label="other",confidence=.2f)),null)).entities.single().belief
+    check(relabel==.2f)
+    println("PASS: eight memory kinds, scoped recall, scene-relative relations, depth missing, place hypotheses, graph transitions, no invented skills, frame validation, temporal confidence fusion")
 }

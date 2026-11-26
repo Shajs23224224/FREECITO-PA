@@ -170,7 +170,7 @@
   "world": {
     "geometry": "image-relative 2.5D, no metric pose",
     "depth_alignment": "exact frame match only",
-    "belief": "uncalibrated detection confidence",
+    "belief": "uncalibrated temporal confidence fusion with exponential decay",
     "place_recognition": "Jaccard signature hypothesis",
     "edges": "temporal adjacency only",
     "memory_kinds": [

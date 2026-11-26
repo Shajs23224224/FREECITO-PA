@@ -39,12 +39,20 @@ class WorldModel(private val memory:CognitiveMemory,private val session:String) 
     private var last=-1L
     private var lastPlace:String?=null
     private var sequence=0L
+    private var lastNs=-1L
+    private var priorBeliefs=emptyMap<Long,SpatialEntity>()
     init { require(session.length in 1..80) }
     private fun similarity(a:Set<String>,b:Set<String>):Float = if(a.isEmpty()||b.isEmpty())0f else a.intersect(b).size.toFloat()/a.union(b).size
     fun observe(s:Scene):WorldState {
-        require(s.frame>last && s.frame>=0 && s.nowNs>=0 && s.atMs>=0 && s.entities.size<=32 && s.entities.map{it.id}.toSet().size==s.entities.size)
+        require(s.frame>last && s.frame>=0 && s.nowNs>lastNs && s.atMs>=0 && s.entities.size<=32 && s.entities.map{it.id}.toSet().size==s.entities.size)
         require(s.depth==null || (s.depth.size==64 && s.depth.all{it.isFinite()&&it in 0f..1f}))
-        val entities=s.entities.map { v -> SpatialEntity(v,s.depth?.get((v.y*8).toInt().coerceAtMost(7)*8+(v.x*8).toInt().coerceAtMost(7)),v.confidence) }
+        val dt=if(lastNs<0)Double.POSITIVE_INFINITY else (s.nowNs-lastNs)/1e9
+        val historyWeight=(.35*exp(-dt/1.5)).toFloat()
+        val entities=s.entities.map { v ->
+            val old=priorBeliefs[v.id]?.takeIf{it.visible.label==v.label && abs(it.visible.x-v.x)<.2f && abs(it.visible.y-v.y)<.2f}
+            val belief=if(old==null)v.confidence else (v.confidence*(1-historyWeight)+old.belief*historyWeight).coerceIn(0f,1f)
+            SpatialEntity(v,s.depth?.get((v.y*8).toInt().coerceAtMost(7)*8+(v.x*8).toInt().coerceAtMost(7)),belief)
+        }
         val relations=mutableListOf<Relation>()
         for(i in entities.indices) for(j in i+1 until entities.size){
             val a=entities[i];val b=entities[j]
@@ -70,7 +78,7 @@ class WorldModel(private val memory:CognitiveMemory,private val session:String) 
             if(prior!=null)add(MemoryKind.SPATIAL,"edge:$prior->$place".take(180),"temporal_cooccurrence_not_route",.4f,"observation_sequence")
         }
         memory.consolidate(records)
-        last=s.frame;lastPlace=place
+        last=s.frame;lastPlace=place;lastNs=s.nowNs;priorBeliefs=entities.associateBy{it.visible.id}
         return WorldState(s.frame,entities,relations,place,score,prior,(known.size+if(place!=null&&known.none{it.key==place})1 else 0).coerceAtMost(256))
     }
 }
