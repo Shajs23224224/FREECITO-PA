@@ -84,7 +84,7 @@ class NeuralSession(context:Context,scope:String?,sessionId:String) : AutoClosea
                     }
                     available("visual",s.tracks!=null,"vision_availability")
                     available("text",s.text!=null,"ocr_availability")
-                    available("aligned_depth",s.tracks!=null && s.relativeDepth?.frameNs==s.tracks.frameNs,"frame_alignment")
+                    available("aligned_depth",t!=null && s.relativeDepth?.frameNs==t.frameNs,"frame_alignment")
                     available("memory",memory!=null,"memory_scope")
                     val rules=listOf(Rule(setOf("visual","aligned_depth"),"spatial_review"),Rule(setOf("visual","memory"),"recall_review"))
                     val plans=listOf(
