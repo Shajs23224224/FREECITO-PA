@@ -11,7 +11,7 @@ import kotlin.math.abs
 data class PolicyHealth(val updates:Long,val rollbacks:Long,val disabled:Boolean)
 
 class ContinuousPolicy(private val scope:String,private val file:File):AdaptivePolicy {
-    companion object { const val FEATURES=8; const val WEIGHTS=48; private const val MAGIC=0x4f4d3801 }
+    companion object { const val FEATURES=8; const val WEIGHTS=88; private const val MAGIC=0x4f4d3802; private const val LEGACY=0x4f4d3801 }
     private data class Sample(val family:Family,val x:List<Float>,val reward:Float)
     private data class State(val weights:FloatArray,val samples:List<Sample>,val ids:List<String>,val updates:Long,val rollbacks:Long)
     private var state=State(FloatArray(WEIGHTS),emptyList(),emptyList(),0,0)
@@ -20,7 +20,7 @@ class ContinuousPolicy(private val scope:String,private val file:File):AdaptiveP
     @Synchronized fun setSuspended(value:Boolean){suspended=value}
     @Synchronized fun health()=PolicyHealth(state.updates,state.rollbacks,disabled)
     init { require(scope.length in 1..200); if(file.exists())try{state=read()}catch(e:Exception){disabled=true} }
-    private fun eligible(f:Family)=f in listOf(Family.INSPECT,Family.EXPLORE,Family.COLLECT,Family.EXCHANGE_VIRTUAL)
+    private fun eligible(f:Family)=f in listOf(Family.INSPECT,Family.EXPLORE,Family.COLLECT,Family.EXCHANGE_VIRTUAL,Family.COVER,Family.RELOAD,Family.HEAL,Family.ENGAGE,Family.DISENGAGE)
     private fun valid(x:List<Float>)=x.size==FEATURES&&x.all{it.isFinite()&&abs(it)<=1f}
     private fun prediction(w:FloatArray,f:Family,x:List<Float>)=x.indices.sumOf{(w[f.ordinal*FEATURES+it]*x[it]).toDouble()}.toFloat().coerceIn(-1f,1f)
     @Synchronized override fun adjustment(family:Family,features:List<Float>):Float = if(disabled||suspended||!eligible(family)||!valid(features))0f else 30f*prediction(state.weights,family,features)
@@ -59,9 +59,9 @@ class ContinuousPolicy(private val scope:String,private val file:File):AdaptiveP
         require(file.length() in 33..131072);val all=file.readBytes();val data=all.copyOfRange(0,all.size-32)
         require(MessageDigest.isEqual(digest(data),all.copyOfRange(all.size-32,all.size)))
         return DataInputStream(ByteArrayInputStream(data)).use{i->
-            require(i.readInt()==MAGIC&&i.readUTF()==scope);val u=i.readLong();val r=i.readLong();require(u>=0&&r>=0)
-            val w=FloatArray(WEIGHTS){i.readFloat()};require(w.all{it.isFinite()&&abs(it)<=.5f})
-            val n=i.readInt();require(n in 0..32);val samples=List(n){val f=Family.values()[i.readInt()];val x=List(FEATURES){i.readFloat()};val v=i.readFloat();require(eligible(f)&&valid(x)&&v.isFinite()&&v in -1f..1f);Sample(f,x,v)}
+            val magic=i.readInt();require((magic==MAGIC||magic==LEGACY)&&i.readUTF()==scope);val u=i.readLong();val r=i.readLong();require(u>=0&&r>=0)
+            val w=FloatArray(WEIGHTS);repeat(if(magic==LEGACY)48 else WEIGHTS){w[it]=i.readFloat()};require(w.all{it.isFinite()&&abs(it)<=.5f})
+            val n=i.readInt();require(n in 0..(if(magic==LEGACY)32 else 72));val samples=List(n){val f=Family.values()[i.readInt()];val x=List(FEATURES){i.readFloat()};val v=i.readFloat();require((magic!=LEGACY||f.ordinal<6)&&eligible(f)&&valid(x)&&v.isFinite()&&v in -1f..1f);Sample(f,x,v)}
             val m=i.readInt();require(m in 0..128);val ids=List(m){i.readUTF().also{require(it.length in 1..160)}};require(i.available()==0&&ids.distinct().size==ids.size&&samples.groupBy{it.family}.values.all{it.size<=8});State(w,samples,ids,u,r)
         }
     }

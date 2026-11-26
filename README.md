@@ -1,4 +1,4 @@
-# OMEGA v1.0.2 — núcleo integrado (candidato técnico)
+# OMEGA v1.0.3 — núcleo integrado (candidato técnico)
 
 Infraestructura Android y núcleo nativo para la futura IA agéntica de videojuegos Shooter 3D autorizados. Incluye adaptadores de modelos perceptivos preentrenados y un núcleo factorizado no entrenado. No hay política de juego entrenada ni adaptador real conectado. El código nativo y JNI se han probado en Linux; la compilación y las pruebas de Android requieren verificación.
 
@@ -83,3 +83,7 @@ Apertura del cliente Android mediante el único botón cuando no existe adaptado
 ## Puente de accesibilidad (v1.0.2)
 
 Transporte táctil Android experimental acotado a un adaptador de prueba privado y atestado. No habilitado en el cliente público. Véase `docs/ACCESSIBILITY.md`.
+
+## Política táctica experimental
+
+Contexto virtual confirmado por GamePort, cinco familias nuevas, política inicial y aprendizaje incremental con 88 pesos. No se conecta el cliente público. Véase `docs/TACTICAL.md`.
