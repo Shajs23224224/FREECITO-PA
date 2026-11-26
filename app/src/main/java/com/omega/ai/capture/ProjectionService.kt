@@ -41,7 +41,6 @@ class ProjectionService : Service() {
     override fun onStartCommand(intent: Intent?, flags:Int, startId:Int): Int {
         if(intent?.action=="STOP") { shutdown("user_stop"); return START_NOT_STICKY }
         if(projection!=null) return START_NOT_STICKY
-        if(!GameBinding.canCapture() || !RuntimeSession.status().active) { shutdown("scope_unavailable"); return START_NOT_STICKY }
         try {
             val nm=getSystemService(NotificationManager::class.java)
             nm.createNotificationChannel(NotificationChannel("omega_capture","OMEGA · sesión",NotificationManager.IMPORTANCE_LOW))
@@ -49,6 +48,7 @@ class ProjectionService : Service() {
             val stop=PendingIntent.getService(this,2,Intent(this,ProjectionService::class.java).setAction("STOP"),PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
             val notification=Notification.Builder(this,"omega_capture").setContentTitle("OMEGA · observación activa").setContentText("Pulsa Detener para cerrar la sesión").setSmallIcon(R.drawable.ic_omega).setOngoing(true).setContentIntent(open).addAction(Notification.Action.Builder(null,"Detener",stop).build()).build()
             if(Build.VERSION.SDK_INT>=29) startForeground(101,notification,ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION) else startForeground(101,notification)
+            if(!GameBinding.canCapture() || !RuntimeSession.status().active) { shutdown("scope_unavailable"); return START_NOT_STICKY }
             @Suppress("DEPRECATION") val consent=requireNotNull(intent).getParcelableExtra<Intent>("consent") ?: error("Missing consent")
             val result=requireNotNull(intent).getIntExtra("result",Activity.RESULT_CANCELED)
             check(result==Activity.RESULT_OK)

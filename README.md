@@ -1,4 +1,4 @@
-# OMEGA v0.1.0 — Fase 1
+# OMEGA v0.2.0 — Fase 2 (candidato)
 
 Infraestructura Android y núcleo nativo para la futura IA agéntica de videojuegos Shooter 3D autorizados. No contiene modelos entrenados ni política autónoma de juego. El código nativo y JNI se han probado en Linux; la compilación y las pruebas de Android requieren verificación.
 
@@ -39,3 +39,7 @@ Los pequeños buffers RGBA de prueba son exclusivamente comprobaciones de transp
 - docs: hoja de ruta, resultados y dependencias.
 
 La especificación PDF y el ZIP original se entregaron aparte; el conector GitHub utilizado permite escritura de texto, no carga directa de esos binarios. No se afirma instalación en Android ni funcionamiento de la IA en partidas.
+
+## Fase 2: visión
+
+El módulo `vision` implementa inferencia local con tres rutas: EfficientDet-Lite0, ML Kit OCR y Depth Anything V2 Small ONNX. Ejecuta `bash scripts/fetch-vision-models.sh` antes de compilar; CI realiza ese paso automáticamente. Las dependencias y pesos no fueron descargados en el entorno local sin acceso a red. No hay prueba Android ni validación en partida. Seguimiento IoU y preprocesamiento sí fueron probados en JVM. No se ha activado el adaptador de juego. Consulte `docs/FASE-2.md`.
