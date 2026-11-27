@@ -103,7 +103,7 @@ object RuntimeSession {
         budget=if(reading!=null)governor.update(reading.health,perf) else governor.update(Health(.85,true,null,null,null,false,false,null),perf)
         if(GameBinding.training!=null)budget=MetaGovernor.trainingBudget(budget,reading?.health)
         configureVision()
-        SessionDiagnostics.event("budget","${budget.load} commands=${budget.commands} ocr=${budget.ocr} heap=${reading?.health?.heapRatio} lowMemory=${reading?.health?.lowMemory} thermal=${reading?.health?.thermal}")
+        SessionDiagnostics.event("budget","${budget.load} commands=${budget.commands} ocr=${budget.ocr} heap=${reading?.health?.heapRatio} lowMemory=${reading?.health?.lowMemory} thermal=${reading?.health?.thermal} batteryC=${reading?.health?.batteryC} batteryPct=${reading?.health?.batteryPct} p95Ms=${perf.p95Ms} failures=${perf.failureRatio}")
         neural?.configureBudget(budget)
         if(!budget.commands)TouchBridge.disarm() else if(capture)TouchBridge.arm()
         resourceStatus=reading?.let{r->

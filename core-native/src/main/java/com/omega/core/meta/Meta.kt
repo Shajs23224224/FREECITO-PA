@@ -24,7 +24,7 @@ class MetaGovernor {
     @Synchronized fun update(h:Health,p:Performance):Budget {
         val target=when {
             h.heapRatio>=.94 || (h.thermal?:0)>=4 || (h.batteryC?:0.0)>=47 -> Load.STOP
-            h.lowMemory || h.heapRatio>=.83 || (h.thermal?:0)>=3 || (h.batteryC?:0.0)>=43 || (p.samples>=4&&(p.failureRatio>=.5||(p.p95Ms?:0.0)>=1400)) -> Load.LIMITED
+            h.lowMemory || h.heapRatio>=.83 || (h.batteryC?:0.0)>=43 || (p.samples>=4&&(p.failureRatio>=.5||(p.p95Ms?:0.0)>=1400)) -> Load.LIMITED
             h.powerSave || (!h.charging&&(h.batteryPct?:100)<=15) || h.heapRatio>=.70 || (h.thermal?:0)>=2 || (h.cpuPct?:0.0)>=180 || (p.samples>=4&&(p.failureRatio>=.20||(p.p95Ms?:0.0)>=650)) -> Load.ECONOMY
             else -> Load.NORMAL
         }
@@ -42,10 +42,11 @@ class MetaGovernor {
             Load.STOP->Budget(mode,0,Long.MAX_VALUE,4,false,false,false,false)
         }
         // Keep the session alive and permit bounded gestures at moderate load.
-        // Severe/critical thermal, low memory and low battery still suspend actions.
+        // Android level 3 uses the reduced economy budget; battery heat, critical thermal,
+        // low memory and low battery still suspend actions.
         fun trainingBudget(base:Budget,h:Health?):Budget {
             if(h==null||base.load.ordinal>=Load.LIMITED.ordinal)return base.copy(commands=false,learning=false,depth=false)
-            val safe=h.thermal!=null&&h.thermal<=2&&!h.lowMemory&&h.heapRatio<.83&&(h.batteryC?:47.0)<43&&(h.charging||(h.batteryPct?:0)>15)
+            val safe=h.thermal!=null&&h.thermal<=3&&!h.lowMemory&&h.heapRatio<.83&&(h.batteryC?:47.0)<43&&(h.charging||(h.batteryPct?:0)>15)
             return base.copy(commands=safe,learning=safe&&base.load==Load.NORMAL,depth=false)
         }
         fun policyHealthy(updates:Long,rollbacks:Long,disabled:Boolean):Boolean {

@@ -32,7 +32,9 @@ data class VisionSnapshot(
     val detectorStatus: String, val ocrStatus: String, val depthStatus: String,
     val hud:TimedObservation<HudCandidates>?=null, val hudStatus:String="waiting",
     val hudCompleted:Long=0,val hudMs:Long?=null,val hudLastCount:Int?=null,val ocrCompleted:Long=0,val ocrMs:Long?=null,val ocrLastCount:Int?=null,
-    val detectorBackend:String="not_loaded",val detectorCompleted:Long=0,val detectorMs:Long?=null,val detectorLastCount:Int?=null
+    val detectorBackend:String="not_loaded",val detectorCompleted:Long=0,val detectorMs:Long?=null,val detectorLastCount:Int?=null,
+    val ocrCacheHits:Long=0,val ocrInferenceCount:Long=0,val ocrInferenceMs:Long?=null,
+    val ocrInputPixels:Int?=null,val ocrSourcePixels:Int?=null
 )
 
 /**
@@ -83,6 +85,14 @@ class VisionEngine(context: Context) : AutoCloseable {
     private var yoloFailed=false
     @Volatile private var detectorBackend="not_loaded"
     private var recognizer: TextRecognizer? = null
+    private var ocrBitmap:Bitmap?=null
+    private val ocrCache=ExactFrameCache<List<TextLine>>(8_000_000_000L)
+    private var ocrCacheGeneration=-1L
+    private var ocrCacheHits=0L
+    private var ocrInferenceCount=0L
+    private var ocrInferenceMs:Long?=null
+    private var ocrInputPixels:Int?=null
+    private var ocrSourcePixels:Int?=null
     private var depthSession: OrtSession? = null
     private var tracker = VisibleTracker(ttlNs=4_000_000_000L)
     private var trackerW=0
@@ -100,7 +110,7 @@ class VisionEngine(context: Context) : AutoCloseable {
             return
         }
         if(a) launch(fast,frameNs,now) { detect(pixels,w,h,frameNs) }
-        if(b) launch(text,frameNs,now) { readText(pixels,w,h) }
+        if(b) { val gen=text.generation;launch(text,frameNs,now) { readText(pixels,w,h,frameNs,gen) } }
         if(c) launch(depth,frameNs,now) { estimate(pixels,w,h) }
         if(d) launch(hud,frameNs,now) { HudCandidates(w,h,emptyList(),IconHud.scan(pixels,w,h)) }
     }
@@ -167,15 +177,41 @@ class VisionEngine(context: Context) : AutoCloseable {
             return tracker.update(ts,observations)
         } finally { image.close(); bmp.recycle() }
     }
-    private fun readText(pixels: IntArray,w: Int,h: Int): List<TextLine> {
+    private fun readText(pixels:IntArray,w:Int,h:Int,frameNs:Long,generation:Long):List<TextLine>{
+        if(ocrCacheGeneration!=generation){ocrCache.clear();ocrCacheGeneration=generation}
+        // A new input must be exactly identical; no approximate matching.
+        ocrCache.lookup(pixels,w,h,frameNs)?.let { cached ->
+            synchronized(this){ocrCacheHits++}
+            return cached
+        }
         val client=recognizer ?: TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS).also { recognizer=it }
-        val bmp=bitmap(pixels,w,h)
-        try {
+        val roi=UniformMarginCrop.find(pixels,w,h)
+        val started=SystemClock.elapsedRealtimeNanos()
+        fun recognize(r:OcrRegion):List<TextLine>{
+            val bmp=ocrBitmap?.takeIf{it.width==r.width&&it.height==r.height&&!it.isRecycled}
+                ?: Bitmap.createBitmap(r.width,r.height,Bitmap.Config.ARGB_8888).also { ocrBitmap?.recycle();ocrBitmap=it }
+            bmp.setPixels(pixels,r.y*w+r.x,w,0,0,r.width,r.height)
             val result=Tasks.await(client.process(InputImage.fromBitmap(bmp,0)))
             return result.textBlocks.flatMap { it.lines }.take(100).map { l ->
-                TextLine(l.text.take(256),l.boundingBox?.let { normalized(RectF(it),w,h) })
+                TextLine(l.text.take(256),l.boundingBox?.let { box ->
+                    normalized(RectF((box.left+r.x).toFloat(),(box.top+r.y).toFloat(),(box.right+r.x).toFloat(),(box.bottom+r.y).toFloat()),w,h)
+                })
             }
-        } finally { bmp.recycle() }
+        }
+        var used=roi
+        var lines=recognize(roi)
+        // If the smaller input yields no lines, preserve full-frame recognition.
+        if(lines.isEmpty()&&(roi.width!=w||roi.height!=h)){
+            used=OcrRegion(0,0,w,h);lines=recognize(used)
+        }
+        synchronized(this){
+            ocrInferenceCount++
+            ocrInferenceMs=(SystemClock.elapsedRealtimeNanos()-started)/1_000_000L
+            ocrInputPixels=used.width*used.height
+            ocrSourcePixels=w*h
+        }
+        ocrCache.store(pixels,w,h,frameNs,lines)
+        return lines
     }
     private fun estimate(pixels: IntArray,w: Int,h: Int): List<Float>? {
         val env=OrtEnvironment.getEnvironment()
@@ -213,13 +249,13 @@ class VisionEngine(context: Context) : AutoCloseable {
     @Synchronized fun snapshot(): VisionSnapshot {
         val now=SystemClock.elapsedRealtimeNanos()
         return VisionSnapshot(fast.current(now),text.current(now),depth.current(now),
-            fast.status.get(),text.status.get(),depth.status.get(),hud.current(now),hud.status.get(),hud.completed,hud.durationMs,hud.outputCount,text.completed,text.durationMs,text.outputCount,detectorBackend,fast.completed,fast.durationMs,fast.outputCount)
+            fast.status.get(),text.status.get(),depth.status.get(),hud.current(now),hud.status.get(),hud.completed,hud.durationMs,hud.outputCount,text.completed,text.durationMs,text.outputCount,detectorBackend,fast.completed,fast.durationMs,fast.outputCount,ocrCacheHits,ocrInferenceCount,ocrInferenceMs,ocrInputPixels,ocrSourcePixels)
     }
     @Synchronized override fun close() {
         if(!closed.compareAndSet(false,true))return
         fast.result.set(null); text.result.set(null); depth.result.set(null); hud.result.set(null)
         fast.executor.execute { yolo?.close();yolo=null;detector?.close(); detector=null }
-        text.executor.execute { recognizer?.close(); recognizer=null }
+        text.executor.execute { recognizer?.close(); recognizer=null;ocrBitmap?.recycle();ocrBitmap=null;ocrCache.clear() }
         depth.executor.execute { depthSession?.close(); depthSession=null }
         fast.executor.shutdown(); text.executor.shutdown(); depth.executor.shutdown(); hud.executor.shutdown()
     }
