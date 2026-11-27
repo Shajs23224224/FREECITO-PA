@@ -16,9 +16,13 @@ adb shell am instrument -w -r com.omega.ai.test/com.omega.ai.OmegaEmulatorTest |
 code=${PIPESTATUS[0]}
 set -e
 adb logcat -d -v threadtime > emulator-report/logcat.txt
+adb logcat -b crash -d -v threadtime > emulator-report/crash.txt
+cat emulator-report/crash.txt
+grep -E 'OMEGA_EMULATOR|OMEGA_DIAG' emulator-report/logcat.txt | tail -n 100 || true
 adb exec-out screencap -p > emulator-report/finish.png
 adb shell settings put secure accessibility_enabled 0
 adb shell settings delete secure enabled_accessibility_services
 test "$code" -eq 0
 grep -q '^OMEGA_EMULATOR_PASS' emulator-report/instrumentation.txt
-! grep -q 'OMEGA_EMULATOR_FAIL' emulator-report/instrumentation.txt
+! grep -q 'OMEGA_EMULATOR_FAIL\|Process crashed' emulator-report/instrumentation.txt
+ grep -q 'INSTRUMENTATION_CODE: -1' emulator-report/instrumentation.txt

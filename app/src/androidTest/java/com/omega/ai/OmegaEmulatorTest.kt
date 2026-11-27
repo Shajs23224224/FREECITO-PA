@@ -28,12 +28,29 @@ class OmegaEmulatorTest : Instrumentation() {
         fun report(s:String){android.util.Log.i("OMEGA_EMULATOR",s);sendStatus(0,Bundle().apply{putString("stream","\n"+s+"\n")})}
         fun field(obj:Any,name:String):Any?=obj.javaClass.getDeclaredField(name).apply{isAccessible=true}.get(obj)
         fun method(obj:Any,name:String){obj.javaClass.getDeclaredMethod(name).apply{isAccessible=true}.invoke(obj)}
+        // Exceptions from SyncRunnable otherwise escape on Android's main thread.
+        fun onUi(action:()->Unit){
+            val error=AtomicReference<Throwable?>(null)
+            runOnMainSync { try{action()}catch(t:Throwable){error.set(t)} }
+            error.get()?.let{throw it}
+        }
+        fun waitForUi(description:String,predicate:()->Boolean){
+            val limit=SystemClock.elapsedRealtime()+10000L
+            while(SystemClock.elapsedRealtime()<limit){
+                var ready=false
+                onUi{ready=predicate()}
+                if(ready)return
+                SystemClock.sleep(100)
+            }
+            error("Timed out: "+description)
+        }
+        var passed=false
         try{
             activity=startActivitySync(Intent(targetContext,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             waitForIdleSync()
             check(!activity.isFinishing){"MainActivity finishing"}
             report("PASS: OMEGA Activity installed and launched")
-            runOnMainSync {
+            onUi {
                 check(RuntimeSession.start()){"Native core start"}
                 check(RuntimeSession.status().active){"Native core inactive"}
                 check(!RuntimeSession.beginCapture()){"Unexpected capture without authorized adapter"}
@@ -47,11 +64,15 @@ class OmegaEmulatorTest : Instrumentation() {
             while(ref.get()==null&&SystemClock.elapsedRealtime()<deadline)SystemClock.sleep(250)
             val connected=ref.get() as? OmegaTouchService?:error("Accessibility service not connected")
             service=connected
-            runOnMainSync {
+            var panel:LinearLayout?=null
+            onUi{
                 // Exercise only overlay construction in our own activity; no game scope is supplied.
                 method(connected,"ensurePanel")
-                val panel=field(connected,"panel") as? LinearLayout?:error("Overlay unavailable")
-                check(panel.isAttachedToWindow){"Overlay not attached"}
+                panel=field(connected,"panel") as? LinearLayout?:error("Overlay unavailable")
+            }
+            // WindowManager.addView schedules attachment on a later UI traversal.
+            waitForUi("overlay attachment"){panel?.isAttachedToWindow==true && (panel?.width?:0)>0 && (panel?.height?:0)>0}
+            onUi{
                 val start=field(connected,"startButton") as Button
                 val pause=field(connected,"pauseButton") as Button
                 check(start.text.toString()=="Iniciar"&&pause.text.toString()=="Pausar")
@@ -60,8 +81,8 @@ class OmegaEmulatorTest : Instrumentation() {
                 pause.performClick()
                 check(!RuntimeSession.status().active)
                 method(connected,"removePanel")
-                check(!panel.isAttachedToWindow){"Overlay not removed"}
             }
+            waitForUi("overlay detachment"){panel?.isAttachedToWindow==false}
             report("PASS: accessibility connected; floating window attached, labels present, removed; start rejected outside permitted scope")
             val w=640;val h=320
             val bitmap=Bitmap.createBitmap(w,h,Bitmap.Config.ARGB_8888)
@@ -84,17 +105,26 @@ class OmegaEmulatorTest : Instrumentation() {
             report("PASS: real YOLOX Android ONNX inference, ms="+s.detectorMs+" detections="+s.detectorLastCount)
             check(s.ocrStatus=="inference_ok"&&s.ocrCompleted>0&&(s.ocrLastCount?:0)>0){"OCR status="+s.ocrStatus}
             report("PASS: ML Kit Android OCR, ms="+s.ocrMs+" lines="+s.ocrLastCount)
-            report("OMEGA_EMULATOR_PASS")
-            results.putString("stream","\nOMEGA_EMULATOR_PASS\n")
-            finish(Activity.RESULT_OK,results)
+            passed=true
         }catch(t:Throwable){
             android.util.Log.e("OMEGA_EMULATOR","failure",t)
             results.putString("stream","\nOMEGA_EMULATOR_FAIL: "+t.stackTraceToString()+"\n")
-            finish(Activity.RESULT_CANCELED,results)
         }finally{
-            vision?.close()
-            val a=activity;val srv=service
-            runCatching{runOnMainSync{srv?.let{method(it,"removePanel")};RuntimeSession.stop("emulator_cleanup");a?.finish()}}
+            val cleanup=runCatching{
+                vision?.close()
+                val a=activity;val srv=service
+                onUi{srv?.let{method(it,"removePanel")};RuntimeSession.stop("emulator_cleanup");a?.finish()}
+            }
+            cleanup.exceptionOrNull()?.let{t->
+                passed=false
+                android.util.Log.e("OMEGA_EMULATOR","cleanup failure",t)
+                results.putString("stream",(results.getString("stream")?:"")+"\nOMEGA_EMULATOR_FAIL: cleanup "+t.stackTraceToString()+"\n")
+            }
+            if(passed){
+                report("OMEGA_EMULATOR_PASS")
+                results.putString("stream","\nOMEGA_EMULATOR_PASS\n")
+            }
+            finish(if(passed)Activity.RESULT_OK else Activity.RESULT_CANCELED,results)
         }
     }
 }
