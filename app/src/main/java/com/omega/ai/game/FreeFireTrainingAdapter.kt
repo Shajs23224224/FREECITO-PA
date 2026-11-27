@@ -45,6 +45,7 @@ internal class FreeFireTrainingAdapter:AuthorizedGameAdapter,GamePort{
         val now=SystemClock.elapsedRealtimeNanos()
         return active&&foreground&&verifiedAt>=0&&now-verifiedAt in 0..2_500_000_000L&&controlAt>=0&&now-controlAt in 0..1_500_000_000L
     }
+    fun currentControlObservationNs():Long?=controlAt.takeIf{accessibilityTestScopeConfirmed()&&it>=0}
     override fun authorized()=active&&foreground
     @Synchronized fun status()=lastMessage
     @Synchronized fun foreground(value:Boolean){

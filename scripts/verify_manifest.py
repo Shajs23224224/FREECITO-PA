@@ -14,7 +14,7 @@ r=x['reasoning']; assert r['max_plans']==16 and r['max_steps']==8 and not r['tra
 e=x['executive']; assert e['max_in_flight']==1 and not e['real_money'] and not e['actual_game_execution']
 l=x['learning']; assert l['head_parameters']==88 and l['eligible_parameters']==72 and l['actual_game_experiences']==0 and not l['training_separate']
 m=x['meta']; assert m['role_budgets']==[4,2,1,0] and m['resource_stop_latched'] and m['latency_window']==32
-v=x['release']; assert x['version']=='1.0.11' and v['scope_and_freshness_gate'] and not v['gameplay_validated'] and not v['physical_device_validated']
+v=x['release']; assert x['version']=='1.0.12' and v['scope_and_freshness_gate'] and not v['gameplay_validated'] and not v['physical_device_validated']
 a=x['accessibility']; assert a['configured'] and a['public_client_enabled'] and a['training_marker_required'] and a['max_pending']==1 and not a['delivery_is_reward']
 assert not x['tactical']['live_adapter'] and x['tactical']['actual_game_experiences']==0
 assert n['unique_parameters']+l['head_parameters']==3111624

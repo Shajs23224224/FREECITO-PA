@@ -59,24 +59,24 @@ jobs:
           cp build/meta-benchmark.log build/release-test.log dist/
           cp config/architecture.json docs/FASE-10.md docs/FREE-FIRE.md docs/ACCESSIBILITY.md docs/TACTICAL.md docs/RANK17.md docs/rank17-host-test.log docs/ACCESSIBILITY-UI.md docs/TRAINING-LIVE.md docs/AUTO-HUD.md docs/DIAGNOSTICS.md docs/ICON-HUD.md docs/YOLOX.md dist/
           cp vision/src/main/assets/models/MODEL_SHA256.txt vision/src/main/assets/models/YOLOX_LICENSE.txt dist/
-          cp app/build/outputs/apk/debug/app-debug.apk dist/OMEGA-v1.0.11-debug.apk
-          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose dist/OMEGA-v1.0.11-debug.apk
-          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging dist/OMEGA-v1.0.11-debug.apk | tee dist/apk-badging.txt
-          python3 scripts/verify-apk.py dist/OMEGA-v1.0.11-debug.apk dist/apk-badging.txt
+          cp app/build/outputs/apk/debug/app-debug.apk dist/OMEGA-v1.0.12-debug.apk
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose dist/OMEGA-v1.0.12-debug.apk
+          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging dist/OMEGA-v1.0.12-debug.apk | tee dist/apk-badging.txt
+          python3 scripts/verify-apk.py dist/OMEGA-v1.0.12-debug.apk dist/apk-badging.txt
           git rev-parse HEAD > dist/COMMIT.txt
           (cd dist && sha256sum *.apk > SHA256SUMS.txt)
       - uses: actions/upload-artifact@v4
         with:
-          name: OMEGA-v1.0.11-debug
+          name: OMEGA-v1.0.12-debug
           path: dist/
           if-no-files-found: error
       - name: Archive exact source commit
         run: |
           mkdir -p source-dist
-          git archive --format=zip --prefix=OMEGA-v1.0.11/ HEAD > source-dist/OMEGA-v1.0.11-source.zip
+          git archive --format=zip --prefix=OMEGA-v1.0.12/ HEAD > source-dist/OMEGA-v1.0.12-source.zip
           (cd source-dist && sha256sum *.zip > SHA256SUMS.txt)
       - uses: actions/upload-artifact@v4
         with:
-          name: OMEGA-v1.0.11-source
+          name: OMEGA-v1.0.12-source
           path: source-dist/
           if-no-files-found: error

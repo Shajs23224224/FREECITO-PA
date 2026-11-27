@@ -28,3 +28,7 @@ assert 'imageWorker.execute' in service_code and 'screenshot_timeout' in service
 assert 'waiting_training_marker' in adapter and 'waiting_hud' in adapter
 assert 'HudActionPolicy.gesture' in adapter and 'TrainingObservation.contextualMarker' in adapter and 'TrainingObservation.medkits' in adapter
 print('PASS: automatic HUD training adapter, explicit session and screenshot/gesture source contract; not a device test')
+
+assert 'TYPE_ACCESSIBILITY_OVERLAY' in service_code and 'FLAG_NOT_FOCUSABLE' in service_code
+assert 'pauseFromPanel' in service_code and 'resumeFromPanel' in service_code and 'floating_pause' in service_code
+assert 'intersectsPanel' in service_code and 'dismissPanel' in ui

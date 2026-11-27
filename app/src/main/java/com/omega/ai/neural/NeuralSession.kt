@@ -180,11 +180,11 @@ class NeuralSession(context:Context,scope:String?,sessionId:String,port:GamePort
                     if(activeBudget.roles==0||closed.get())return@execute
                     val p=board.deliberate(frame,now,x,evidence,(0..15).toList(),activeBudget.roles)
                     // F01/F02 remain diagnostic embeddings. Authorization, fresh state and symbolic context gate the command.
-                    val visualTime=if(GameBinding.training!=null)s.hud?.receivedNs else t?.receivedNs
+                    val visualTime=if(GameBinding.training!=null)GameBinding.currentControlObservationNs() else t?.receivedNs
                     val visualReady=if(GameBinding.training!=null)s.hud!=null&&s.text!=null else result.facts["visual"]==Truth.TRUE
                     val ready=GameBinding.canCommand(budget.commands,visualTime,SystemClock.elapsedRealtimeNanos())&&selected!=null&&visualReady&&p.execution.all{it.isFinite()}
                     val tick=if(closed.get())null else executive?.tick(ready,p.execution)
-                    SessionDiagnostics.event("executive","ready=$ready status=${tick?.status?:"no_adapter"} result=${tick?.result?.outcome?:"none"}")
+                    SessionDiagnostics.event("executive","ready=$ready status=${tick?.status?:"no_adapter"} result=${tick?.result?.outcome?:"none"} visualAgeMs=${visualTime?.let{(SystemClock.elapsedRealtimeNanos()-it)/1_000_000L}} selected=${selected!=null}")
                     priorTick=tick
                     if(memory!=null && tick!=null && !closed.get()){
                         val wall=System.currentTimeMillis()
