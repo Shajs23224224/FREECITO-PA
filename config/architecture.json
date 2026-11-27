@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "1.0.11",
+  "version": "1.0.12",
   "status": "compressed_modules_executable_untrained",
   "main": 824,
   "intermediate": 32,
@@ -321,7 +321,7 @@
     "training_severe": "pause work while retaining session, recover with hysteresis"
   },
   "release": {
-    "classification": "pretrained YOLOX visual integration, no device/gameplay validation",
+    "classification": "experimental floating accessibility controls and current observation diagnostics",
     "signature": "debug only; CI verifies",
     "abi": "arm64-v8a",
     "minimum_android_api": 26,
@@ -351,7 +351,18 @@
     "settings_link": true,
     "enabled_connected_armed_diagnostics": true,
     "optional_without_adapter": false,
-    "training_marker_required": true
+    "training_marker_required": true,
+    "floating_panel": {
+      "type": "TYPE_ACCESSIBILITY_OVERLAY",
+      "non_focusable": true,
+      "controls": [
+        "start",
+        "pause"
+      ],
+      "pause": "disarm and close session; restart fresh in same foreground game",
+      "gesture_overlap_rejected": true,
+      "physical_device_validated": false
+    }
   },
   "tactical": {
     "state": "authorized virtual training port; observed health, ammunition, threat, cover, healing items and hit counter",

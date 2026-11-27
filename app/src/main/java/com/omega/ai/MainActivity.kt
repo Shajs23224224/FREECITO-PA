@@ -54,7 +54,7 @@ class MainActivity : Activity() {
             minHeight=dp(48);isClickable=true;isFocusable=true;setOnClickListener{showAccessSettings()}
         }
         root.addView(accessLink,LinearLayout.LayoutParams(-1,-2))
-        root.addView(label("v1.0.11 · Visión YOLOX",12f,Color.LTGRAY).apply { setPadding(0,dp(16),0,0) })
+        root.addView(label("v1.0.12 · Control flotante",12f,Color.LTGRAY).apply { setPadding(0,dp(16),0,0) })
         root.addView(Button(this).apply{text="Ver diagnóstico de última sesión";isAllCaps=false;setOnClickListener{showDiagnostic()}})
         val scroll=android.widget.ScrollView(this).apply{isFillViewport=true;addView(root)}
         setContentView(scroll); render()
@@ -117,7 +117,7 @@ class MainActivity : Activity() {
         if(accessibilityEnabled()!=true||!TouchBridge.connected()){showAccessSettings();return}
         if(!FreeFireLauncher.available(this)){launchMessage="Free Fire no encontrado";render();return}
         AlertDialog.Builder(this).setTitle("Iniciar sesión de entrenamiento")
-            .setMessage("Entra manualmente en el campo de entrenamiento autorizado. OMEGA reconoce automáticamente la zona y busca controles en la pantalla. No necesitas marcar puntos ni seleccionar una captura. No inicia partidas ni compra objetos. Regresa a esta aplicación para detener la sesión. La detección experimental puede fallar.")
+            .setMessage("Entra manualmente en el campo de entrenamiento autorizado. OMEGA reconoce automáticamente la zona y busca controles en la pantalla. No necesitas marcar puntos ni seleccionar una captura. No inicia partidas ni compra objetos. Usa el menú flotante Iniciar/Pausar o regresa a esta aplicación para detener la sesión. La detección experimental puede fallar.")
             .setNegativeButton("Cancelar",null).setPositiveButton("Iniciar"){_,_->
                 GameBinding.beginTraining()
                 if(RuntimeSession.start()&&FreeFireLauncher.open(this)&&TouchBridge.startObservation()){launchMessage=null}
@@ -139,7 +139,7 @@ class MainActivity : Activity() {
         render()
     }
     override fun onSaveInstanceState(outState: Bundle) { outState.putBoolean("awaiting",awaitingConsent); super.onSaveInstanceState(outState) }
-    override fun onResume(){super.onResume();if(GameBinding.training!=null&&RuntimeSession.status().active)RuntimeSession.stop("returned_to_omega");render()}
+    override fun onResume(){super.onResume();TouchBridge.dismissPanel();if(GameBinding.training!=null&&RuntimeSession.status().active)RuntimeSession.stop("returned_to_omega");render()}
     override fun onStart() { super.onStart(); handler.post(tick) }
     override fun onStop() { handler.removeCallbacks(tick); if(!isChangingConfigurations && !awaitingConsent && !RuntimeSession.status().capturing && GameBinding.adapter==null) RuntimeSession.stop("left_app"); super.onStop() }
 }

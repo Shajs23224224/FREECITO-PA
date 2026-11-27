@@ -38,6 +38,7 @@ object GameBinding {
         val a=adapter ?: return null
         a.accessibilityTestPackage?.takeIf{it.isNotBlank() && a.accessibilityTestScopeConfirmed() && canCapture()}
     }.getOrNull()
+    fun currentControlObservationNs():Long?=training?.currentControlObservationNs()
     fun canCommand(enabled:Boolean,visualNs:Long?,nowNs:Long):Boolean = runCatching {
         SessionGate.commandAllowed(connection(),adapter?.accessibilityTestScopeConfirmed()==true,enabled,visualNs,nowNs)
     }.getOrDefault(false)

@@ -6,6 +6,16 @@ import android.graphics.Path
 import android.graphics.Bitmap
 import android.os.Build
 import android.view.Display
+import android.view.WindowManager
+import android.view.Gravity
+import android.view.MotionEvent
+import android.view.View
+import android.graphics.PixelFormat
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+import android.widget.LinearLayout
+import android.widget.TextView
+import android.widget.Button
 import java.nio.ByteBuffer
 import com.omega.ai.RuntimeSession
 import com.omega.ai.SessionDiagnostics
@@ -33,6 +43,7 @@ internal object TouchBridge {
     fun connected()=service.get()!=null
     fun startObservation():Boolean=service.get()?.startObservation()?:false
     fun stopObservation(){service.get()?.stopObservation()}
+    fun dismissPanel(){service.get()?.dismissPanel()}
     fun isArmed()=connected()&&armed.get()&&GameBinding.accessibilityTarget()!=null
     fun attach(s:OmegaTouchService){service.set(s)}
     fun detach(s:OmegaTouchService){if(service.compareAndSet(s,null))disarm()}
@@ -55,6 +66,97 @@ class OmegaTouchService:AccessibilityService(){
         info.packageNames=arrayOf(FreeFireLauncher.PACKAGE)
         serviceInfo=info
         TouchBridge.attach(this);SessionDiagnostics.event("service","connected",true)
+    }
+    // The non-focusable accessibility overlay needs no additional draw-over-apps permission.
+    private val wm by lazy { getSystemService(WINDOW_SERVICE) as WindowManager }
+    private var panel:LinearLayout?=null
+    private var panelStatus:TextView?=null
+    private var startButton:Button?=null
+    private var pauseButton:Button?=null
+    private var panelParams:WindowManager.LayoutParams?=null
+    private var panelEnabled=false
+    private var keepPanelOnStop=false
+    private var panelText="Preparado"
+    private fun dp(n:Int)=(resources.displayMetrics.density*n+.5f).toInt()
+    private val panelPoll=object:Runnable{override fun run(){
+        if(!panelEnabled)return
+        val game=rootInActiveWindow?.packageName?.toString()==FreeFireLauncher.PACKAGE
+        if(game){
+            ensurePanel()
+            val active=observing&&RuntimeSession.status().active
+            startButton?.isEnabled=!active
+            pauseButton?.isEnabled=active
+            panelStatus?.text=if(!active)panelText else when{
+                RuntimeSession.capturePaused()->"Enfriamiento"
+                TouchBridge.isArmed()->"Gestos habilitados"
+                else->GameBinding.training?.status()?.take(68) ?: "Esperando evidencia"
+            }
+        }else removePanel()
+        main.postDelayed(this,700L)
+    }}
+    private fun ensurePanel(){
+        if(panel!=null)return
+        val box=LinearLayout(this).apply{
+            orientation=LinearLayout.VERTICAL;setPadding(dp(5),dp(3),dp(5),dp(3))
+            background=GradientDrawable().apply{setColor(Color.argb(235,16,24,39));cornerRadius=dp(9).toFloat()}
+        }
+        val header=TextView(this).apply{text="OMEGA  ·  ↕";setTextColor(Color.WHITE);textSize=11f;gravity=Gravity.CENTER;minHeight=dp(24)}
+        val buttons=LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL}
+        val start=Button(this).apply{text="Iniciar";isAllCaps=false;textSize=12f;minHeight=dp(40);minimumHeight=dp(40);minWidth=0;minimumWidth=0;setPadding(dp(6),0,dp(6),0);setOnClickListener{resumeFromPanel()}}
+        val pause=Button(this).apply{text="Pausar";isAllCaps=false;textSize=12f;minHeight=dp(40);minimumHeight=dp(40);minWidth=0;minimumWidth=0;setPadding(dp(6),0,dp(6),0);setOnClickListener{pauseFromPanel()}}
+        buttons.addView(start,LinearLayout.LayoutParams(0,dp(40),1f));buttons.addView(pause,LinearLayout.LayoutParams(0,dp(40),1f))
+        val label=TextView(this).apply{setTextColor(Color.LTGRAY);textSize=10f;maxLines=2;gravity=Gravity.CENTER;text=panelText}
+        box.addView(header);box.addView(buttons);box.addView(label)
+        val lp=WindowManager.LayoutParams(dp(166),WindowManager.LayoutParams.WRAP_CONTENT,WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,PixelFormat.TRANSLUCENT).apply{gravity=Gravity.TOP or Gravity.LEFT;x=dp(12);y=dp(70)}
+        panelParams=lp
+        var downX=0f;var downY=0f;var originX=0;var originY=0
+        header.setOnTouchListener{_,e->
+            when(e.actionMasked){
+                MotionEvent.ACTION_DOWN->{downX=e.rawX;downY=e.rawY;originX=lp.x;originY=lp.y;true}
+                MotionEvent.ACTION_MOVE->{
+                    @Suppress("DEPRECATION") val display=wm.defaultDisplay
+                    val size=android.graphics.Point();@Suppress("DEPRECATION") display.getSize(size)
+                    lp.x=(originX+(e.rawX-downX).toInt()).coerceIn(0,(size.x-box.width).coerceAtLeast(0))
+                    lp.y=(originY+(e.rawY-downY).toInt()).coerceIn(0,(size.y-box.height).coerceAtLeast(0))
+                    runCatching{wm.updateViewLayout(box,lp)};true
+                }
+                MotionEvent.ACTION_UP,MotionEvent.ACTION_CANCEL->true
+                else->false
+            }
+        }
+        try{wm.addView(box,lp);panel=box;panelStatus=label;startButton=start;pauseButton=pause}
+        catch(e:Exception){SessionDiagnostics.event("panel","show_failed:"+e.javaClass.simpleName,true)}
+    }
+    private fun removePanel(){
+        panel?.let{runCatching{wm.removeViewImmediate(it)}}
+        panel=null;panelStatus=null;startButton=null;pauseButton=null;panelParams=null
+    }
+    internal fun dismissPanel(){
+        if(Looper.myLooper()!=Looper.getMainLooper()){main.post{dismissPanel()};return}
+        panelEnabled=false;main.removeCallbacks(panelPoll);removePanel()
+    }
+    private fun pauseFromPanel(){
+        if(!observing)return
+        TouchBridge.disarm()
+        panelText="Pausado"
+        keepPanelOnStop=true
+        try{RuntimeSession.stop("floating_pause")}finally{keepPanelOnStop=false}
+        panelStatus?.text=panelText;startButton?.isEnabled=true;pauseButton?.isEnabled=false
+    }
+    private fun resumeFromPanel(){
+        if(observing||rootInActiveWindow?.packageName?.toString()!=FreeFireLauncher.PACKAGE)return
+        GameBinding.beginTraining()
+        if(RuntimeSession.start()&&startObservation()){panelText="Buscando entrenamiento";SessionDiagnostics.event("panel","resumed_new_session",true)}
+        else{keepPanelOnStop=true;try{RuntimeSession.stop("floating_start_failed")}finally{keepPanelOnStop=false};panelText="No se pudo iniciar"}
+    }
+    private fun intersectsPanel(x:Float,y:Float,endX:Float,endY:Float,bounds:Rect):Boolean{
+        val v=panel?:return false
+        if(v.visibility!=View.VISIBLE)return false
+        val a=IntArray(2);v.getLocationOnScreen(a)
+        val p=Rect(a[0],a[1],a[0]+v.width,a[1]+v.height)
+        val x0=(bounds.left+x*(bounds.width()-1)).toInt();val x1=(bounds.left+endX*(bounds.width()-1)).toInt()
+        val y0=(bounds.top+y*(bounds.height()-1)).toInt();val y1=(bounds.top+endY*(bounds.height()-1)).toInt()
+        return Rect.intersects(p,Rect(minOf(x0,x1),minOf(y0,y1),maxOf(x0,x1)+1,maxOf(y0,y1)+1))
     }
     private val imageWorker=Executors.newSingleThreadExecutor()
     @Volatile private var observing=false
@@ -92,10 +194,10 @@ class OmegaTouchService:AccessibilityService(){
     }}
     internal fun startObservation():Boolean{
         if(Build.VERSION.SDK_INT<30||observing)return false
-        observing=true;seenGame=false;missingSince=-1;captureErrors=0;startedAt=SystemClock.elapsedRealtime();epoch++;SessionDiagnostics.event("capture","poll_started",true);main.post(poll);return true
+        observing=true;seenGame=false;missingSince=-1;captureErrors=0;startedAt=SystemClock.elapsedRealtime();epoch++;panelEnabled=true;main.removeCallbacks(panelPoll);main.post(panelPoll);SessionDiagnostics.event("capture","poll_started",true);main.post(poll);return true
     }
     internal fun stopObservation(){
-        observing=false;epoch++;screenshotPending=false;main.removeCallbacks(poll);TouchBridge.disarm()
+        observing=false;epoch++;screenshotPending=false;main.removeCallbacks(poll);TouchBridge.disarm();if(!keepPanelOnStop)dismissPanel()
     }
     private fun finishObservation(reason:String){SessionDiagnostics.event("service",reason,true);stopObservation();RuntimeSession.stop(reason)}
     @android.annotation.TargetApi(30)
@@ -164,6 +266,7 @@ class OmegaTouchService:AccessibilityService(){
                 val bounds=Rect()
                 root?.getBoundsInScreen(bounds)
                 if(!TouchGate.allows(TouchBridge.allowed(token),target,foreground,request,SystemClock.elapsedRealtime())||bounds.width()<2||bounds.height()<2){finish(false);return@post}
+                if(intersectsPanel(request.x,request.y,request.endX,request.endY,bounds)){SessionDiagnostics.event("gesture","panel_overlap",true);finish(false);return@post}
                 val path=Path().apply{
                     moveTo(bounds.left+request.x*(bounds.width()-1),bounds.top+request.y*(bounds.height()-1))
                     lineTo(bounds.left+request.endX*(bounds.width()-1),bounds.top+request.endY*(bounds.height()-1))
