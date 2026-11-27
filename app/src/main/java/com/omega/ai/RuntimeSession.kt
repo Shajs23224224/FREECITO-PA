@@ -62,7 +62,7 @@ object RuntimeSession {
     @Synchronized fun beginCapture(): Boolean {
         if (!GameBinding.canCapture() || !resourceHealthy() || engine?.observe() != true) return false
         vision=VisionEngine(app).also{it.configureLoad(budget.visionMultiplier,budget.ocr,budget.depth)}
-        capture = true; if(budget.commands)TouchBridge.arm(); message = "Observación experimental · v1.0.6"; return true
+        capture = true; if(budget.commands)TouchBridge.arm(); message = "Observación experimental · v1.0.7"; return true
     }
     @Synchronized fun submit(buffer: ByteBuffer, w: Int, h: Int, row: Int, pixel: Int, ts: Long): Boolean {
         if(!capture||!GameBinding.canCapture()||!resourceHealthy())return false
@@ -71,7 +71,7 @@ object RuntimeSession {
         if(engine?.submit(buffer,w,h,row,pixel,ts)!=true)return false
         submittedAt=now
         vision?.offer(buffer,w,h,row,pixel,ts)
-        vision?.snapshot()?.let { GameBinding.ingest(it);neural?.offer(it) }
+        vision?.snapshot()?.let { GameBinding.ingest(it);if(budget.commands&&GameBinding.accessibilityTarget()!=null)TouchBridge.arm();neural?.offer(it) }
         return true
     }
     /** Sample at most every two seconds. A critical reading is latched; the service closes projection. */

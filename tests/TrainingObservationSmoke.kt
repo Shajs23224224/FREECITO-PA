@@ -8,5 +8,8 @@ fun main(){
     check(TrainingObservation.difference(FloatArray(64),FloatArray(64){.1f})!!>.045f)
     check(TrainingObservation.difference(FloatArray(64),FloatArray(64))==0f)
     check(TrainingObservation.difference(FloatArray(64){Float.NaN},FloatArray(64))==null)
+    check(TrainingObservation.automaticMarker(listOf(HudLine("CAMPO DE TIRO",.8f,.8f)))=="campo de tiro")
+    check(TrainingObservation.automaticMarker(listOf(HudLine("Entrenamiento",.2f,.2f)))==null)
+    check(TrainingObservation.automaticMarker(listOf(HudLine("Campo de tiro",.1f,.1f),HudLine("Zona de combate",.2f,.2f)))==null)
     println("PASS: exact calibrated training label, ROI, no generic marker, visual change proxy")
 }

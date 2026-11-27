@@ -24,7 +24,7 @@ object GameBinding {
     @Volatile internal var training:FreeFireTrainingAdapter?=null
         private set
     val adapter:AuthorizedGameAdapter? get()=training
-    internal fun beginTraining(profile:TrainingProfile){training?.stop();training=FreeFireTrainingAdapter(profile)}
+    internal fun beginTraining(){training?.stop();training=FreeFireTrainingAdapter()}
     internal fun endTraining(){training?.stop();training=null}
     internal fun ingest(snapshot:VisionSnapshot){training?.ingest(snapshot)}
     fun connection():Connection = runCatching {

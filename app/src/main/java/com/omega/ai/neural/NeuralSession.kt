@@ -53,7 +53,7 @@ class NeuralSession(context:Context,scope:String?,sessionId:String,port:GamePort
     @Synchronized fun offer(s:VisionSnapshot) {
         if(closed.get()||budget.load==Load.STOP)return
         val now=SystemClock.elapsedRealtimeNanos()
-        val frame=listOfNotNull(s.tracks?.frameNs,s.text?.frameNs,s.relativeDepth?.frameNs).maxOrNull() ?: return
+        val frame=listOfNotNull(s.tracks?.frameNs,s.text?.frameNs,s.relativeDepth?.frameNs,s.hud?.frameNs).maxOrNull() ?: return
         if(frame<=seen || (last>=0 && now-last<budget.cognitiveIntervalNs) || !busy.compareAndSet(false,true))return
         last=now; seen=frame
         val x=FloatArray(2048)
@@ -71,6 +71,12 @@ class NeuralSession(context:Context,scope:String?,sessionId:String,port:GamePort
         }
         s.relativeDepth?.let { d -> domains+=1; x[17]=1f; d.value.take(64).forEachIndexed{i,v->x[64+i]=v}; x[1]=d.value.average().toFloat(); evidence+=Evidence("evidence.A011",x[1],.5f,"relative_depth_uncalibrated",d.receivedNs) }
         s.text?.let { t -> domains+=2; x[18]=1f; x[2]=t.value.size/100f; evidence+=Evidence("evidence.A021",x[2],.5f,"ocr_confidence_unavailable",t.receivedNs) }
+        s.hud?.let{h->
+            x[190]=h.value.circles.size/12f
+            x[191]=h.value.circles.firstOrNull()?.score?:0f
+            evidence+=Evidence("evidence.A024",x[190],.5f,"geometric_hud_hypotheses",h.receivedNs)
+            evidence+=Evidence("evidence.A030",x[191],.5f,"untrained_hud_geometry",h.receivedNs)
+        }
         evidence+=Evidence("evidence.A010",domains.size/3f,1f,"modality_availability",now)
         worker.execute {
             val started=SystemClock.elapsedRealtimeNanos();var success=false

@@ -13,8 +13,6 @@ import android.graphics.Color
 import android.media.projection.MediaProjectionManager
 import android.os.Bundle
 import android.os.Build
-import com.omega.ai.game.TrainingProfile
-import com.omega.ai.game.TrainingCalibrationActivity
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
@@ -33,7 +31,6 @@ class MainActivity : Activity() {
     private lateinit var button: Button
     private lateinit var accessStatus: TextView
     private lateinit var accessLink: TextView
-    private lateinit var calibrateLink: TextView
     private val handler = Handler(Looper.getMainLooper())
     private var awaitingConsent = false
     private var launchMessage:String?=null
@@ -57,9 +54,7 @@ class MainActivity : Activity() {
             minHeight=dp(48);isClickable=true;isFocusable=true;setOnClickListener{showAccessSettings()}
         }
         root.addView(accessLink,LinearLayout.LayoutParams(-1,-2))
-        calibrateLink=label("Calibrar HUD de entrenamiento",15f,Color.rgb(144,217,235)).apply{minHeight=dp(48);isClickable=true;isFocusable=true;setOnClickListener{if(!RuntimeSession.status().active)startActivity(Intent(this@MainActivity,TrainingCalibrationActivity::class.java))}}
-        root.addView(calibrateLink,LinearLayout.LayoutParams(-1,-2))
-        root.addView(label("v1.0.6 · Control de entrenamiento experimental",12f,Color.LTGRAY).apply { setPadding(0,dp(16),0,0) })
+        root.addView(label("v1.0.7 · HUD automático experimental",12f,Color.LTGRAY).apply { setPadding(0,dp(16),0,0) })
         setContentView(root); render()
     }
     private fun dp(v: Int) = (v*resources.displayMetrics.density+0.5f).toInt()
@@ -74,7 +69,7 @@ class MainActivity : Activity() {
     }.getOrNull()
     private fun showAccessSettings(){
         AlertDialog.Builder(this).setTitle("Accesibilidad de OMEGA")
-            .setMessage("OMEGA usa capturas locales y gestos en el campo de entrenamiento calibrado de Free Fire. No guarda imágenes ni accede a otros juegos. Activa el servicio solo para las pruebas que has autorizado. Puedes detenerlo regresando a OMEGA o deshabilitarlo en Ajustes.")
+            .setMessage("OMEGA usa capturas locales y gestos en el campo de entrenamiento reconocido visualmente de Free Fire. No guarda imágenes ni accede a otros juegos. Activa el servicio solo para las pruebas que has autorizado. Puedes detenerlo regresando a OMEGA o deshabilitarlo en Ajustes.")
             .setNegativeButton("Cancelar",null)
             .setPositiveButton("Abrir ajustes"){_,_->
                 try{startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))}
@@ -90,18 +85,15 @@ class MainActivity : Activity() {
         }
         status.text = if(s.capturing) "${s.message}\nFotogramas procesados: ${s.stats?.processed ?: 0}" else s.message
         if (s.capturing) s.perception?.let { p ->
-            status.append("\nVisor: ${p.detectorStatus} · OCR: ${p.ocrStatus} · profundidad: ${p.depthStatus}")
+            status.append("\nVisor: ${p.detectorStatus} · OCR: ${p.ocrStatus} · profundidad: ${p.depthStatus} · HUD: ${p.hudStatus}")
         }
         s.neuralStatus?.let { status.append("\n$it") }
         s.resources?.let { status.append("\n$it") }
         if(!s.active && GameBinding.connection()==Connection.UNCONFIGURED){
-            val profile=TrainingProfile.load(this)
-            status.text=launchMessage ?: if(!FreeFireLauncher.available(this)) "Free Fire no encontrado" else if(profile==null)"Calibra el HUD con una captura real de entrenamiento" else "HUD calibrado · entra manualmente en entrenamiento"
-            button.text=if(profile==null)"CALIBRAR ENTRENAMIENTO" else "INICIAR IA"
-            calibrateLink.visibility=View.VISIBLE
+            status.text=launchMessage ?: if(!FreeFireLauncher.available(this)) "Free Fire no encontrado" else "HUD automático · entra al entrenamiento autorizado"
+            button.text="INICIAR IA"
         }else button.text=if(s.active) "DETENER IA" else "INICIAR IA"
         GameBinding.training?.let{status.append("\n"+it.status())}
-        calibrateLink.isEnabled=!s.active
         val enabled=accessibilityEnabled()
         val connected=TouchBridge.connected()
         val armed=TouchBridge.isArmed()
@@ -111,15 +103,13 @@ class MainActivity : Activity() {
     }
     private fun toggle(){
         if(RuntimeSession.status().active){RuntimeSession.stop("user_stop");render();return}
-        val profile=TrainingProfile.load(this)
-        if(profile==null){startActivity(Intent(this,TrainingCalibrationActivity::class.java));return}
         if(Build.VERSION.SDK_INT<30){launchMessage="La captura local requiere Android 11 o superior";render();return}
         if(accessibilityEnabled()!=true||!TouchBridge.connected()){showAccessSettings();return}
         if(!FreeFireLauncher.available(this)){launchMessage="Free Fire no encontrado";render();return}
         AlertDialog.Builder(this).setTitle("Iniciar sesión de entrenamiento")
-            .setMessage("Entra manualmente en el campo de entrenamiento autorizado. OMEGA espera la etiqueta calibrada antes de emitir gestos. No inicia partidas ni compra objetos. Regresa a esta aplicación para detener la sesión. La detección experimental puede fallar.")
+            .setMessage("Entra manualmente en el campo de entrenamiento autorizado. OMEGA reconoce automáticamente la zona y busca controles en la pantalla. No necesitas marcar puntos ni seleccionar una captura. No inicia partidas ni compra objetos. Regresa a esta aplicación para detener la sesión. La detección experimental puede fallar.")
             .setNegativeButton("Cancelar",null).setPositiveButton("Iniciar"){_,_->
-                GameBinding.beginTraining(profile)
+                GameBinding.beginTraining()
                 if(RuntimeSession.start()&&FreeFireLauncher.open(this)&&TouchBridge.startObservation()){launchMessage=null}
                 else{RuntimeSession.stop("start_failed");GameBinding.endTraining();launchMessage="No se pudo iniciar la sesión"}
                 render()
