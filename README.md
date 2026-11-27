@@ -103,3 +103,7 @@ Adaptador Free Fire con calibración visual de una captura elegida por el usuari
 ## HUD automático v1.0.7
 
 Sin perfil ni calibración manual. Detección geométrica, OCR y seguimiento automático de candidatos; movimiento experimental, no validado en cliente físico. Véase `docs/AUTO-HUD.md`.
+
+## Estabilidad y diagnóstico v1.0.8
+
+Traza privada persistente de las fases reales, estado de cierre, captura en trabajador y recuperación breve de transiciones de ventana. Profundidad suspendida en la sesión experimental para priorizar HUD y OCR. Sin validación en dispositivo físico. Véase `docs/DIAGNOSTICS.md`.

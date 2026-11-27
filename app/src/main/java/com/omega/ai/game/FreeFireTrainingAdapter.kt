@@ -3,6 +3,7 @@ package com.omega.ai.game
 import android.app.Activity
 import android.os.SystemClock
 import com.omega.ai.accessibility.TouchBridge
+import com.omega.ai.SessionDiagnostics
 import com.omega.core.executive.*
 import com.omega.core.release.TouchRequest
 import com.omega.vision.*
@@ -83,10 +84,10 @@ internal class FreeFireTrainingAdapter:AuthorizedGameAdapter,GamePort{
             controlAt=if(joystick!=null)h.receivedNs else -1L
         }
         if(verifiedAt<0||now-verifiedAt !in 0..2_500_000_000L){
-            state=null;lastMessage="Buscando automáticamente zona de entrenamiento";return
+            state=null;lastMessage="Buscando automáticamente zona de entrenamiento";SessionDiagnostics.event("adapter","waiting_training_marker consecutive=$consecutive");return
         }
         if(controlAt<0||now-controlAt !in 0..2_500_000_000L){
-            state=null;TouchBridge.disarm();lastMessage="Reconociendo HUD · sin joystick inequívoco";return
+            state=null;TouchBridge.disarm();lastMessage="Reconociendo HUD · sin joystick inequívoco";SessionDiagnostics.event("adapter","waiting_hud");return
         }
         val p=pending
         if(p!=null){
@@ -101,11 +102,12 @@ internal class FreeFireTrainingAdapter:AuthorizedGameAdapter,GamePort{
         val offers=if(pending!=null)emptyList() else listOf(Offer("move",Family.EXPLORE,virtualOnly=true))
         state=GameState(scope,seq,minOf(verifiedAt,controlAt),emptyList(),offers,lastReceipt)
         lastMessage=if(pending==null)"Joystick detectado automáticamente · exploración experimental" else "Observando efecto del movimiento"
+        SessionDiagnostics.event("adapter",if(pending==null)"offer_ready" else "pending_effect")
     }
     @Synchronized override fun observe():GameState?=state?.takeIf{accessibilityTestScopeConfirmed()}
     @Synchronized override fun submit(command:Command):Boolean{
         val now=SystemClock.elapsedRealtimeNanos();val current=state?:return false;val j=joystick?:return false;val before=signature?:return false
-        if(!accessibilityTestScopeConfirmed()||pending!=null||command.scope!=scope||command.sequence!=current.sequence||command.expiresNs<=now||now-current.observedNs !in 0..1_500_000_000L||now-frameNs !in 0..1_000_000_000L||current.offers.none{it.id==command.offerId}||command.offerId!="move")return false
+        if(!accessibilityTestScopeConfirmed()||pending!=null||command.scope!=scope||command.sequence!=current.sequence||command.expiresNs<=now||now-current.observedNs !in 0..1_500_000_000L||now-frameNs !in 0..1_000_000_000L||current.offers.none{it.id==command.offerId}||command.offerId!="move"){SessionDiagnostics.event("adapter","submit_rejected_scope_sequence_or_freshness",true);return false}
         val (dx,dy)=when(issued%4){0->0f to -1f;1->-1f to 0f;2->1f to 0f;else->0f to 1f}
         val x=j.x+dx*j.radiusX*.75f;val y=j.y+dy*j.radiusY*.75f
         if(x !in 0f..1f||y !in 0f..1f)return false
@@ -114,8 +116,8 @@ internal class FreeFireTrainingAdapter:AuthorizedGameAdapter,GamePort{
         val ok=TouchBridge.submit(TouchRequest(j.x,j.y,x,y,350,SystemClock.elapsedRealtime())){success->
             synchronized(this){if(pending===p){if(success)p.deliveredAt=SystemClock.elapsedRealtimeNanos() else p.failed=true}}
         }
-        if(!ok){pending=null;return false}
-        issued++;lastMessage="Exploración desde joystick detectado";return true
+        if(!ok){pending=null;SessionDiagnostics.event("adapter","touch_bridge_rejected",true);return false}
+        issued++;SessionDiagnostics.event("adapter","gesture_queued count=$issued",true);lastMessage="Exploración desde joystick detectado";return true
     }
     @Synchronized override fun stop(){active=false;foreground=false;verifiedAt=-1;controlAt=-1;state=null;pending=null;tracker.clear();lastMessage="Sesión detenida";TouchBridge.disarm()}
 }

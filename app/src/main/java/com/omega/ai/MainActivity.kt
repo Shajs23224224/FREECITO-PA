@@ -54,8 +54,18 @@ class MainActivity : Activity() {
             minHeight=dp(48);isClickable=true;isFocusable=true;setOnClickListener{showAccessSettings()}
         }
         root.addView(accessLink,LinearLayout.LayoutParams(-1,-2))
-        root.addView(label("v1.0.7 · HUD automático experimental",12f,Color.LTGRAY).apply { setPadding(0,dp(16),0,0) })
-        setContentView(root); render()
+        root.addView(label("v1.0.8 · Diagnóstico y estabilidad",12f,Color.LTGRAY).apply { setPadding(0,dp(16),0,0) })
+        root.addView(Button(this).apply{text="Ver diagnóstico de última sesión";isAllCaps=false;setOnClickListener{showDiagnostic()}})
+        val scroll=android.widget.ScrollView(this).apply{isFillViewport=true;addView(root)}
+        setContentView(scroll); render()
+    }
+    private fun showDiagnostic(){
+        val report=SessionDiagnostics.report()
+        AlertDialog.Builder(this).setTitle("Diagnóstico OMEGA").setMessage(report)
+            .setPositiveButton("Cerrar",null).setNeutralButton("Copiar"){_,_->
+                val clipboard=getSystemService(android.content.ClipboardManager::class.java)
+                clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("OMEGA diagnóstico",report))
+            }.show()
     }
     private fun dp(v: Int) = (v*resources.displayMetrics.density+0.5f).toInt()
     private fun label(t:String,s:Float,c:Int) = TextView(this).apply { text=t; textSize=s; setTextColor(c); gravity=Gravity.CENTER }
@@ -90,7 +100,7 @@ class MainActivity : Activity() {
         s.neuralStatus?.let { status.append("\n$it") }
         s.resources?.let { status.append("\n$it") }
         if(!s.active && GameBinding.connection()==Connection.UNCONFIGURED){
-            status.text=launchMessage ?: if(!FreeFireLauncher.available(this)) "Free Fire no encontrado" else "HUD automático · entra al entrenamiento autorizado"
+            status.text=launchMessage ?: if(!FreeFireLauncher.available(this)) "Free Fire no encontrado" else if(s.message.startsWith("Sistema detenido"))s.message else "HUD automático · entra al entrenamiento autorizado"
             button.text="INICIAR IA"
         }else button.text=if(s.active) "DETENER IA" else "INICIAR IA"
         GameBinding.training?.let{status.append("\n"+it.status())}

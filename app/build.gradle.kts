@@ -6,8 +6,8 @@ android {
         applicationId = "com.omega.ai"
         minSdk = 26
         targetSdk = 35
-        versionCode = 17
-        versionName = "1.0.7"
+        versionCode = 18
+        versionName = "1.0.8"
         ndk { abiFilters += listOf("arm64-v8a") }
     }
     androidResources { noCompress += listOf("tflite","onnx") }

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "1.0.7",
+  "version": "1.0.8",
   "status": "compressed_modules_executable_untrained",
   "main": 824,
   "intermediate": 32,
@@ -292,7 +292,7 @@
     "energy": "battery percentage/temperature and power saver only; no watts or joules"
   },
   "release": {
-    "classification": "experimental automatic HUD movement; no device validation",
+    "classification": "experimental automatic HUD with persistent diagnostics and lifecycle fixes",
     "signature": "debug only; CI verifies",
     "abi": "arm64-v8a",
     "minimum_android_api": 26,
@@ -355,5 +355,31 @@
     "manual_calibration": false,
     "hud_discovery": "concentric ring geometry + optional OCR label, repeated frame tracking, ambiguity rejection",
     "camera_control": "not automatically verified"
+  },
+  "diagnostics": {
+    "persistent_trace": true,
+    "max_entries": 100,
+    "stores_screenshots": false,
+    "stores_ocr_text": false,
+    "stages": [
+      "session",
+      "service",
+      "window",
+      "capture",
+      "native",
+      "vision",
+      "budget",
+      "adapter",
+      "executive",
+      "gesture",
+      "neural",
+      "process"
+    ],
+    "screenshot_worker": true,
+    "screenshot_timeout_ms": 5000,
+    "foreground_grace_ms": 3500,
+    "max_capture_errors": 3,
+    "training_depth_enabled": false,
+    "device_validation": false
   }
 }
