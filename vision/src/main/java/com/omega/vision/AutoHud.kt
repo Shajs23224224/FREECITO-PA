@@ -15,7 +15,7 @@ object AutoHud {
         if(w !in 160..1024||h !in 100..720||w<=h||pixels.size!=w*h)return HudCandidates(w,h,emptyList())
         val luma=IntArray(pixels.size){i->val c=pixels[i];((c ushr 16 and 255)*77+(c ushr 8 and 255)*150+(c and 255)*29) shr 8}
         val minR=max(12,(h*.045f).roundToInt());val maxR=min(64,(h*.15f).roundToInt())
-        val step=max(2,h/100)
+        val step=max(1,h/180)
         val result=mutableListOf<HudCircle>()
         fun response(cx:Int,cy:Int,k:Ring):Int{
             var count=0
