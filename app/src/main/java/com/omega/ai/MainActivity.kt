@@ -54,7 +54,7 @@ class MainActivity : Activity() {
             minHeight=dp(48);isClickable=true;isFocusable=true;setOnClickListener{showAccessSettings()}
         }
         root.addView(accessLink,LinearLayout.LayoutParams(-1,-2))
-        root.addView(label("v1.0.10 · Reconocimiento de controles",12f,Color.LTGRAY).apply { setPadding(0,dp(16),0,0) })
+        root.addView(label("v1.0.11 · Visión YOLOX",12f,Color.LTGRAY).apply { setPadding(0,dp(16),0,0) })
         root.addView(Button(this).apply{text="Ver diagnóstico de última sesión";isAllCaps=false;setOnClickListener{showDiagnostic()}})
         val scroll=android.widget.ScrollView(this).apply{isFillViewport=true;addView(root)}
         setContentView(scroll); render()
@@ -95,7 +95,7 @@ class MainActivity : Activity() {
         }
         status.text = if(s.capturing) "${s.message}\nFotogramas procesados: ${s.stats?.processed ?: 0}" else s.message
         if (s.capturing) s.perception?.let { p ->
-            status.append("\nVisor: ${p.detectorStatus} · OCR: ${p.ocrStatus} · profundidad: ${p.depthStatus} · HUD: ${p.hudStatus}")
+            status.append("\nVisor: ${p.detectorBackend} / ${p.detectorStatus} · OCR: ${p.ocrStatus} · profundidad: ${p.depthStatus} · HUD: ${p.hudStatus}")
         }
         s.neuralStatus?.let { status.append("\n$it") }
         s.resources?.let { status.append("\n$it") }

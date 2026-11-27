@@ -111,3 +111,7 @@ Traza privada persistente de las fases reales, estado de cierre, captura en trab
 ## Reconocimiento de controles v1.0.10
 
 Seis plantillas de luminancia de baja resolución, reconocimiento multiescala, dos fotogramas estables, evidencia contextual de campo de tiro y acciones de desplazamiento, carrera, salto, agacharse, tumbarse y curación condicionada a HP/inventario. Ver `docs/ICON-HUD.md`. No se incluye la captura original ni se garantiza cualquier HUD.
+
+## Visión YOLOX v1.0.11
+
+YOLOX-Nano oficial (COCO, ~0,91M parámetros) vía ONNX Runtime, decodificación de anclas y NMS por clase, seguimiento existente y EfficientDet de respaldo. Se conserva la separación de reconocimiento del HUD y alcance de ejecución. Ver `docs/YOLOX.md`.

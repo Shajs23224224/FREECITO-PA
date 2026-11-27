@@ -31,7 +31,8 @@ data class VisionSnapshot(
     val relativeDepth: TimedObservation<List<Float>>?,
     val detectorStatus: String, val ocrStatus: String, val depthStatus: String,
     val hud:TimedObservation<HudCandidates>?=null, val hudStatus:String="waiting",
-    val hudCompleted:Long=0,val hudMs:Long?=null,val hudLastCount:Int?=null,val ocrCompleted:Long=0,val ocrMs:Long?=null,val ocrLastCount:Int?=null
+    val hudCompleted:Long=0,val hudMs:Long?=null,val hudLastCount:Int?=null,val ocrCompleted:Long=0,val ocrMs:Long?=null,val ocrLastCount:Int?=null,
+    val detectorBackend:String="not_loaded",val detectorCompleted:Long=0,val detectorMs:Long?=null,val detectorLastCount:Int?=null
 )
 
 /**
@@ -66,7 +67,7 @@ class VisionEngine(context: Context) : AutoCloseable {
         fun current(now: Long): TimedObservation<T>? =
             result.get()?.takeIf { now >= it.receivedNs && now-it.receivedNs <= ttlNs }
     }
-    private val fast = Lane<List<Track>>(200_000_000L,1_500_000_000L)
+    private val fast = Lane<List<Track>>(1_500_000_000L,2_500_000_000L)
     private val text = Lane<List<TextLine>>(1_000_000_000L,4_000_000_000L)
     private val depth = Lane<List<Float>>(5_000_000_000L,15_000_000_000L)
     private val hud = Lane<HudCandidates>(450_000_000L,2_500_000_000L)
@@ -78,9 +79,12 @@ class VisionEngine(context: Context) : AutoCloseable {
     }
     // Each mutable backend and the tracker belong exclusively to its lane.
     private var detector: ObjectDetector? = null
+    private var yolo:YoloDetector?=null
+    private var yoloFailed=false
+    @Volatile private var detectorBackend="not_loaded"
     private var recognizer: TextRecognizer? = null
     private var depthSession: OrtSession? = null
-    private var tracker = VisibleTracker()
+    private var tracker = VisibleTracker(ttlNs=4_000_000_000L)
     private var trackerW=0
     private var trackerH=0
 
@@ -131,7 +135,20 @@ class VisionEngine(context: Context) : AutoCloseable {
         val rr=(r.right.toFloat()/w).coerceIn(0f,1f); val bb=(r.bottom.toFloat()/h).coerceIn(0f,1f)
         return if(rr>l && bb>t) Box(l,t,rr,bb) else null
     }
-    private fun detect(pixels: IntArray,w: Int,h: Int,ts: Long): List<Track> {
+    private fun detect(pixels:IntArray,w:Int,h:Int,ts:Long):List<Track>{
+        if(!yoloFailed){
+            try{
+                val model=yolo?:YoloDetector(app).also{yolo=it}
+                val observations=model.detect(pixels,w,h)
+                detectorBackend="YOLOX-Nano"
+                if(w!=trackerW||h!=trackerH){tracker=VisibleTracker(ttlNs=4_000_000_000L);trackerW=w;trackerH=h}
+                return tracker.update(ts,observations)
+            }catch(e:Exception){runCatching{yolo?.close()};yolo=null;yoloFailed=true;tracker=VisibleTracker(ttlNs=4_000_000_000L);detectorBackend="EfficientDet fallback:"+e.javaClass.simpleName}
+            catch(e:LinkageError){runCatching{yolo?.close()};yolo=null;yoloFailed=true;tracker=VisibleTracker(ttlNs=4_000_000_000L);detectorBackend="EfficientDet fallback:backend"}
+        }
+        return detectFallback(pixels,w,h,ts)
+    }
+    private fun detectFallback(pixels: IntArray,w: Int,h: Int,ts: Long): List<Track> {
         val model=detector ?: ObjectDetector.createFromOptions(app,
             ObjectDetector.ObjectDetectorOptions.builder()
                 .setBaseOptions(BaseOptions.builder().setModelAssetPath("models/efficientdet.tflite").build())
@@ -146,7 +163,7 @@ class VisionEngine(context: Context) : AutoCloseable {
                 val box=normalized(d.boundingBox(),w,h) ?: return@mapNotNull null
                 if(cat.score().isFinite() && cat.score() in 0f..1f) Detection(label,cat.score(),box) else null
             }
-            if(w!=trackerW || h!=trackerH) { tracker=VisibleTracker(); trackerW=w; trackerH=h }
+            if(w!=trackerW || h!=trackerH) { tracker=VisibleTracker(ttlNs=4_000_000_000L); trackerW=w; trackerH=h }
             return tracker.update(ts,observations)
         } finally { image.close(); bmp.recycle() }
     }
@@ -196,12 +213,12 @@ class VisionEngine(context: Context) : AutoCloseable {
     @Synchronized fun snapshot(): VisionSnapshot {
         val now=SystemClock.elapsedRealtimeNanos()
         return VisionSnapshot(fast.current(now),text.current(now),depth.current(now),
-            fast.status.get(),text.status.get(),depth.status.get(),hud.current(now),hud.status.get(),hud.completed,hud.durationMs,hud.outputCount,text.completed,text.durationMs,text.outputCount)
+            fast.status.get(),text.status.get(),depth.status.get(),hud.current(now),hud.status.get(),hud.completed,hud.durationMs,hud.outputCount,text.completed,text.durationMs,text.outputCount,detectorBackend,fast.completed,fast.durationMs,fast.outputCount)
     }
     @Synchronized override fun close() {
         if(!closed.compareAndSet(false,true))return
         fast.result.set(null); text.result.set(null); depth.result.set(null); hud.result.set(null)
-        fast.executor.execute { detector?.close(); detector=null }
+        fast.executor.execute { yolo?.close();yolo=null;detector?.close(); detector=null }
         text.executor.execute { recognizer?.close(); recognizer=null }
         depth.executor.execute { depthSession?.close(); depthSession=null }
         fast.executor.shutdown(); text.executor.shutdown(); depth.executor.shutdown(); hud.executor.shutdown()
