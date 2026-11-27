@@ -21,6 +21,8 @@ internal object TouchBridge {
     private val service=AtomicReference<OmegaTouchService?>(null)
     private val armed=AtomicBoolean(false)
     private val generation=AtomicLong(0)
+    fun connected()=service.get()!=null
+    fun isArmed()=connected()&&armed.get()&&GameBinding.accessibilityTarget()!=null
     fun attach(s:OmegaTouchService){service.set(s)}
     fun detach(s:OmegaTouchService){if(service.compareAndSet(s,null))disarm()}
     fun arm(){if(GameBinding.accessibilityTarget()!=null && service.get()!=null)armed.compareAndSet(false,true)}

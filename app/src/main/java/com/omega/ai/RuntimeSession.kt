@@ -62,7 +62,7 @@ object RuntimeSession {
     @Synchronized fun beginCapture(): Boolean {
         if (!GameBinding.canCapture() || !resourceHealthy() || engine?.observe() != true) return false
         vision=VisionEngine(app).also{it.configureLoad(budget.visionMultiplier,budget.ocr,budget.depth)}
-        capture = true; if(budget.commands)TouchBridge.arm(); message = "Observación autorizada · v1.0.4"; return true
+        capture = true; if(budget.commands)TouchBridge.arm(); message = "Observación autorizada · v1.0.5"; return true
     }
     @Synchronized fun submit(buffer: ByteBuffer, w: Int, h: Int, row: Int, pixel: Int, ts: Long): Boolean {
         if(!capture||!GameBinding.canCapture()||!resourceHealthy())return false

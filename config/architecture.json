@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "1.0.4",
+  "version": "1.0.5",
   "status": "compressed_modules_executable_untrained",
   "main": 824,
   "intermediate": 32,
@@ -317,7 +317,10 @@
     "gesture_max_ms": 500,
     "ttl_ms": 500,
     "max_pending": 1,
-    "delivery_is_reward": false
+    "delivery_is_reward": false,
+    "settings_link": true,
+    "enabled_connected_armed_diagnostics": true,
+    "optional_without_adapter": true
   },
   "tactical": {
     "state": "authorized virtual training port; observed health, ammunition, threat, cover, healing items and hit counter",

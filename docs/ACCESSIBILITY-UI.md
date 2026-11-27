@@ -1,0 +1,5 @@
+# OMEGA v1.0.5 — diagnóstico de accesibilidad
+
+Corrige la ausencia de acceso visible a los ajustes de accesibilidad. Se conserva el botón principal de apertura del juego. Se añade un enlace secundario opcional, con explicación previa del alcance del permiso, que abre ACTION_ACCESSIBILITY_SETTINGS. La aplicación nunca habilita el permiso automáticamente. La lista de servicios habilitados se consulta mediante AccessibilityManager y se compara el componente exacto; el estado de conexión proviene del puente real. El estado armado se distingue de habilitado y conectado. Se actualiza al regresar a la actividad y en el ciclo de render.
+
+El usuario puede abrir Free Fire sin activar accesibilidad. No se recomienda activar permisos innecesarios. Con GameBinding.adapter nulo no se arman gestos, no se inicia captura ni aprendizaje en partida. Se conserva el núcleo de 3.111.624 parámetros, la política y los checkpoints. El diagnóstico no prueba control del juego ni constituye un adaptador. Sin prueba física Samsung; la comprobación estática y la compilación Android se ejecutan en CI.

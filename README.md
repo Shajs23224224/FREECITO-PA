@@ -91,3 +91,7 @@ Contexto virtual confirmado por GamePort, cinco familias nuevas, política inici
 ## Ampliación neuronal v1.0.4
 
 Rango 17, ocho compuertas residuales independientes por módulo, 3.111.536 parámetros del núcleo más 88 de la política. Total 3.111.624 (+50,006 %). Ver `docs/RANK17.md`.
+
+## Diagnóstico de accesibilidad v1.0.5
+
+Enlace opcional a Ajustes con explicación de permisos y estados habilitado/conectado/armado separados. Sin adaptador, los gestos permanecen inactivos. Véase `docs/ACCESSIBILITY-UI.md`.
