@@ -121,6 +121,7 @@ class OmegaEmulatorTest : Instrumentation() {
             var offered=0
             var staleOcr=0
             var staleHud=0
+            val initialHits=s.ocrCacheHits;val initialInferences=s.ocrInferenceCount
             val duration=45000L
             while(SystemClock.elapsedRealtime()-startRun<duration){
                 val ms=SystemClock.elapsedRealtime()
@@ -169,6 +170,34 @@ class OmegaEmulatorTest : Instrumentation() {
             report("PERF framesOffered="+offered+" simultaneousFresh="+simultaneous+"/"+probes+" (timing only; no game semantics)")
             check(detectorMs.size>=2&&textMs.size>=2&&hudMs.size>=2){"Insufficient completed repeated cycles"}
             report("PASS: repeated Android vision pipeline without backend failure")
+            val staticEnd=v.snapshot()
+            report("PERF STATIC cacheHits="+(staticEnd.ocrCacheHits-initialHits)+" modelCalls="+(staticEnd.ocrInferenceCount-initialInferences)+" lastModelMs="+staticEnd.ocrInferenceMs)
+            // Separate changing-content test, with no model reuse.
+            v.configureLoad(1,false,false,false,false)
+            SystemClock.sleep(8000)
+            v.configureLoad(1,true,false,false,false)
+            val dynamicTimes=mutableListOf<Long>()
+            val dynamicStart=v.snapshot()
+            for(code in listOf("ALPHA","BRAVO","CHARLIE")){
+                val b=Bitmap.createBitmap(w,h,Bitmap.Config.ARGB_8888)
+                Canvas(b).apply{drawColor(Color.WHITE);drawText(code,50f,130f,Paint(Paint.ANTI_ALIAS_FLAG).apply{color=Color.BLACK;textSize=52f})}
+                val px=IntArray(w*h);b.getPixels(px,0,w,0,0,w,h);b.recycle()
+                val buf=ByteBuffer.allocateDirect(w*h*4)
+                for(c in px){buf.put((c shr 16).toByte());buf.put((c shr 8).toByte());buf.put(c.toByte());buf.put((c ushr 24).toByte())};buf.flip()
+                val before=v.snapshot().ocrInferenceCount
+                v.offer(buf,w,h,w*4,4,SystemClock.elapsedRealtimeNanos())
+                val limit=SystemClock.elapsedRealtime()+30000
+                while(v.snapshot().ocrInferenceCount==before&&SystemClock.elapsedRealtime()<limit)SystemClock.sleep(100)
+                val after=v.snapshot()
+                check(after.ocrInferenceCount==before+1){"Missing full-frame inference for "+code}
+                after.ocrInferenceMs?.let{dynamicTimes+=it}
+                val found=after.text?.value?.any{it.text.contains(code,true)}
+                if(found!=null)check(found){"Unexpected fresh text for "+code}
+                report("PERF DYNAMIC label="+code+" ms="+after.ocrInferenceMs+" freshContentMatch="+found)
+                SystemClock.sleep(1200)
+            }
+            check(v.snapshot().ocrCacheHits==dynamicStart.ocrCacheHits){"Unexpected cache hit for changing content"}
+            report("PERF DYNAMIC model-only "+summary(dynamicTimes)+" cacheHits=0")
             // Verify resource policy with controlled inputs, not by overheating the emulator.
             val clean=com.omega.core.meta.Health(.3,false,0,30.0,80,false,false,25.0)
             val perf=com.omega.core.meta.Performance(0,null,0.0)
