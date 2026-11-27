@@ -60,7 +60,8 @@ class OmegaEmulatorTest : Instrumentation() {
             report("PASS: JNI/core start and stop; no unconfigured capture")
             val bridge=Class.forName("com.omega.ai.accessibility.TouchBridge")
             val ref=bridge.getDeclaredField("service").apply{isAccessible=true}.get(null) as AtomicReference<*>
-            val deadline=SystemClock.elapsedRealtime()+15000
+            report("ACCESSIBILITY_READY_FOR_BIND")
+            val deadline=SystemClock.elapsedRealtime()+60000
             while(ref.get()==null&&SystemClock.elapsedRealtime()<deadline)SystemClock.sleep(250)
             val connected=ref.get() as? OmegaTouchService?:error("Accessibility service not connected")
             service=connected
