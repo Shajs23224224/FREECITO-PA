@@ -54,7 +54,7 @@ class MainActivity : Activity() {
             minHeight=dp(48);isClickable=true;isFocusable=true;setOnClickListener{showAccessSettings()}
         }
         root.addView(accessLink,LinearLayout.LayoutParams(-1,-2))
-        root.addView(label("v1.0.9 · Visión adaptativa",12f,Color.LTGRAY).apply { setPadding(0,dp(16),0,0) })
+        root.addView(label("v1.0.10 · Reconocimiento de controles",12f,Color.LTGRAY).apply { setPadding(0,dp(16),0,0) })
         root.addView(Button(this).apply{text="Ver diagnóstico de última sesión";isAllCaps=false;setOnClickListener{showDiagnostic()}})
         val scroll=android.widget.ScrollView(this).apply{isFillViewport=true;addView(root)}
         setContentView(scroll); render()

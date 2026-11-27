@@ -107,3 +107,7 @@ Sin perfil ni calibración manual. Detección geométrica, OCR y seguimiento aut
 ## Estabilidad y diagnóstico v1.0.8
 
 Traza privada persistente de las fases reales, estado de cierre, captura en trabajador y recuperación breve de transiciones de ventana. Profundidad suspendida en la sesión experimental para priorizar HUD y OCR. Sin validación en dispositivo físico. Véase `docs/DIAGNOSTICS.md`.
+
+## Reconocimiento de controles v1.0.10
+
+Seis plantillas de luminancia de baja resolución, reconocimiento multiescala, dos fotogramas estables, evidencia contextual de campo de tiro y acciones de desplazamiento, carrera, salto, agacharse, tumbarse y curación condicionada a HP/inventario. Ver `docs/ICON-HUD.md`. No se incluye la captura original ni se garantiza cualquier HUD.

@@ -18,7 +18,7 @@ internal object SessionDiagnostics {
         running=false;save()
     }
     @Synchronized fun begin(){
-        entries.clear();last.clear();running=true;event("session","start v1.0.9",true)
+        entries.clear();last.clear();running=true;event("session","start v1.0.10",true)
     }
     @Synchronized fun end(reason:String){
         if(running){running=false;event("session","stop "+reason,true)}

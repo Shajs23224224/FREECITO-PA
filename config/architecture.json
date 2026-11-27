@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "1.0.9",
+  "version": "1.0.10",
   "status": "compressed_modules_executable_untrained",
   "main": 824,
   "intermediate": 32,
@@ -137,7 +137,7 @@
     "model_execution": "Android not yet verified",
     "game_adapter": "unconfigured",
     "auxiliary_models_not_counted_in_858": true,
-    "hud": "heuristic geometric candidates, not pretrained icon classifier"
+    "hud": "experimental template matcher, not a trained game-specific neural detector"
   },
   "implemented_dense_independent_networks": 0,
   "trained_networks": 0,
@@ -294,7 +294,7 @@
     "training_severe": "pause work while retaining session, recover with hysteresis"
   },
   "release": {
-    "classification": "adaptive load and diagnostic improvements; movement not validated",
+    "classification": "experimental multi-icon movement and healing integration; no device validation",
     "signature": "debug only; CI verifies",
     "abi": "arm64-v8a",
     "minimum_android_api": 26,
@@ -308,7 +308,7 @@
   "free_fire": {
     "package": "com.dts.freefireth",
     "launch": "Android public launcher intent",
-    "command_adapter": "experimental automatic HUD movement discovery",
+    "command_adapter": "experimental multi-icon template discovery and contextual training evidence",
     "capture_enabled": true,
     "gameplay_validated": false
   },
@@ -349,14 +349,22 @@
     "combat_controls_verified": false,
     "marker_required": true,
     "training_verified_on_device": false,
-    "receipt": "two changed post-gesture frames above background noise, low-weight proxy not causal proof",
+    "receipt": "movement change proxy; healing requires health increase; unconfirmed gestures not rewarded",
     "real_experiences_verified": 0,
     "automatic_actions": [
-      "move"
+      "move",
+      "sprint",
+      "jump",
+      "crouch",
+      "prone",
+      "heal"
     ],
     "manual_calibration": false,
-    "hud_discovery": "concentric ring geometry + optional OCR label, repeated frame tracking, ambiguity rejection",
-    "camera_control": "not automatically verified"
+    "hud_discovery": "multiscale normalized icon correlation, six screenshot-derived grayscale prototypes, two-frame stable association",
+    "camera_control": "not automatically verified",
+    "training_context": "explicit zone OCR or quick settings plus two spatially distinct distance labels; heuristic, not owner attestation",
+    "medkit_requirement": "OCR health below 45 percent and positive nearby inventory count",
+    "real_image_test": "six icons detected in one user-provided screenshot and translated/rescaled derivatives; not independent dataset"
   },
   "diagnostics": {
     "persistent_trace": true,

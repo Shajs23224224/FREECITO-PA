@@ -14,7 +14,7 @@ object TacticalPolicy {
         return when(action){
             CombatAction.COVER->if(c.threatVisible==true&&c.inCover==false)120 else -1
             CombatAction.RELOAD->if(ammo==0&&(c.reserve?:0)>0&&c.threatVisible==false)110 else -1
-            CombatAction.HEAL->if(health!=null&&health<.45f&&(c.healingItems?:0)>0&&c.threatVisible==false)115 else -1
+            CombatAction.HEAL->if(health!=null&&health<.45f&&(c.healingItems?:0)>0&&c.threatVisible!=true)115 else -1
             CombatAction.ENGAGE->if(c.threatVisible==true&&c.inCover==true&&health!=null&&health>=.45f&&(ammo?:0)>0)105 else -1
             CombatAction.DISENGAGE->if(c.threatVisible==true&&(health!=null&&health<.45f||ammo==0))125 else -1
         }
