@@ -208,9 +208,10 @@ class OmegaEmulatorTest : Instrumentation() {
                 return com.omega.core.meta.MetaGovernor.trainingBudget(com.omega.core.meta.MetaGovernor().update(health,perf),health)
             }
             check(thermal(1).commands&&thermal(2).commands)
-            check(!thermal(3).commands&&!thermal(4).commands)
+            check(thermal(3).load==com.omega.core.meta.Load.ECONOMY&&thermal(3).commands&&thermal(3).ocr&&!thermal(3).learning&&!thermal(3).depth)
+            check(!thermal(4).commands)
             check(thermal(4).load==com.omega.core.meta.Load.STOP)
-            report("PASS: controlled thermal policy; moderate load permits commands, severe/critical protect device")
+            report("PASS: controlled thermal policy; level 3 economy permits bounded commands and OCR, critical thermal protects device")
             passed=true
         }catch(t:Throwable){
             android.util.Log.e("OMEGA_EMULATOR","failure",t)
