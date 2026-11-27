@@ -26,4 +26,5 @@ assert 'Ver diagnóstico de última sesión' in ui and 'SessionDiagnostics.repor
 assert 'previous_process_interrupted' in diagnostics and 'entries.size>100' in diagnostics
 assert 'imageWorker.execute' in service_code and 'screenshot_timeout' in service_code and 'foreground_or_geometry_timeout' in service_code
 assert 'waiting_training_marker' in adapter and 'waiting_hud' in adapter
+assert 'HudActionPolicy.gesture' in adapter and 'TrainingObservation.contextualMarker' in adapter and 'TrainingObservation.medkits' in adapter
 print('PASS: automatic HUD training adapter, explicit session and screenshot/gesture source contract; not a device test')

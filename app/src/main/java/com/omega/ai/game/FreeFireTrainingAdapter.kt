@@ -112,11 +112,15 @@ internal class FreeFireTrainingAdapter:AuthorizedGameAdapter,GamePort{
         val choice=if(pending==null)HudActionPolicy.next(icons.keys,issued,health,medkits) else null
         val offers=choice?.let{listOf(Offer(it.name.lowercase(java.util.Locale.ROOT),if(it==HudIcon.HEAL)Family.HEAL else Family.EXPLORE,virtualOnly=true))}?:emptyList()
         val combat=if(choice==HudIcon.HEAL||pending?.kind==HudIcon.HEAL||receiptKind==HudIcon.HEAL)CombatContext(true,health,null,null,null,null,medkits,null,.8f) else null
-        state=GameState(scope,seq,minOf(verifiedAt,controlAt),emptyList(),offers,lastReceipt,combat)
+        state=GameState(scope,seq,controlAt,emptyList(),offers,lastReceipt,combat)
         lastMessage=if(pending==null)"HUD: "+icons.keys.joinToString(",")+" · "+(choice?.name?:"sin acción") else "Observando efecto de "+pending?.kind
         SessionDiagnostics.event("adapter",if(pending==null)"offer_ready "+choice?.name else "pending_effect")
     }
-    @Synchronized override fun observe():GameState?=state?.takeIf{accessibilityTestScopeConfirmed()}
+    @Synchronized override fun observe():GameState? {
+        val current=state?.takeIf{accessibilityTestScopeConfirmed()}?:return null
+        if(current.receipt!=null){lastReceipt=null;receiptKind=null}
+        return current
+    }
     @Synchronized override fun submit(command:Command):Boolean{
         val now=SystemClock.elapsedRealtimeNanos();val current=state?:return false;val before=signature?:return false
         if(!accessibilityTestScopeConfirmed()||pending!=null||command.scope!=scope||command.sequence!=current.sequence||command.expiresNs<=now||now-current.observedNs !in 0..1_500_000_000L||now-frameNs !in 0..1_000_000_000L||current.offers.none{it.id==command.offerId}){SessionDiagnostics.event("adapter","submit_rejected_scope_sequence_or_freshness",true);return false}

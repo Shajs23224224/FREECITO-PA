@@ -73,8 +73,8 @@ class NeuralSession(context:Context,scope:String?,sessionId:String,port:GamePort
         s.relativeDepth?.let { d -> domains+=1; x[17]=1f; d.value.take(64).forEachIndexed{i,v->x[64+i]=v}; x[1]=d.value.average().toFloat(); evidence+=Evidence("evidence.A011",x[1],.5f,"relative_depth_uncalibrated",d.receivedNs) }
         s.text?.let { t -> domains+=2; x[18]=1f; x[2]=t.value.size/100f; evidence+=Evidence("evidence.A021",x[2],.5f,"ocr_confidence_unavailable",t.receivedNs) }
         s.hud?.let{h->
-            x[190]=h.value.circles.size/12f
-            x[191]=h.value.circles.firstOrNull()?.score?:0f
+            x[190]=h.value.icons.size/6f
+            x[191]=h.value.icons.maxOfOrNull{it.score}?:0f
             evidence+=Evidence("evidence.A024",x[190],.5f,"geometric_hud_hypotheses",h.receivedNs)
             evidence+=Evidence("evidence.A030",x[191],.5f,"untrained_hud_geometry",h.receivedNs)
         }

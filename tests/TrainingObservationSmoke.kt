@@ -11,5 +11,12 @@ fun main(){
     check(TrainingObservation.automaticMarker(listOf(HudLine("CAMPO DE TIRO",.8f,.8f)))=="campo de tiro")
     check(TrainingObservation.automaticMarker(listOf(HudLine("Entrenamiento",.2f,.2f)))==null)
     check(TrainingObservation.automaticMarker(listOf(HudLine("Campo de tiro",.1f,.1f),HudLine("Zona de combate",.2f,.2f)))==null)
+    val ctx=listOf(HudLine("Ajustes rápidos",.5f,.03f),HudLine("30M",.31f,.34f),HudLine("40 M",.62f,.35f))
+    check(TrainingObservation.contextualMarker(ctx)=="range_context")
+    check(TrainingObservation.contextualMarker(ctx.take(1))==null)
+    check(TrainingObservation.contextualMarker(ctx+HudLine("Battle Royale",.5f,.1f))==null)
+    check(TrainingObservation.health(listOf(HudLine("HP 200/200",.5f,.95f)))==1f)
+    check(TrainingObservation.health(listOf(HudLine("HP 60/200",.5f,.95f)))==.3f)
+    check(TrainingObservation.medkits(listOf(HudLine("0",.28f,.93f)),.28f,.90f,.02f,.05f)==0)
     println("PASS: exact calibrated training label, ROI, no generic marker, visual change proxy")
 }
