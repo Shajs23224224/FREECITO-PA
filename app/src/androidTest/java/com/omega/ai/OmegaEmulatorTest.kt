@@ -105,6 +105,80 @@ class OmegaEmulatorTest : Instrumentation() {
             report("PASS: real YOLOX Android ONNX inference, ms="+s.detectorMs+" detections="+s.detectorLastCount)
             check(s.ocrStatus=="inference_ok"&&s.ocrCompleted>0&&(s.ocrLastCount?:0)>0){"OCR status="+s.ocrStatus}
             report("PASS: ML Kit Android OCR, ms="+s.ocrMs+" lines="+s.ocrLastCount)
+            // Repeated frames at the real capture cadence, not merely a cold-start check.
+            v.configureLoad(1,true,false,true,true)
+            val startRun=SystemClock.elapsedRealtime()
+            var nextOffer=startRun
+            var lastDetector=s.detectorCompleted
+            var lastText=s.ocrCompleted
+            var lastHud=0L
+            val detectorMs=mutableListOf<Long>()
+            val textMs=mutableListOf<Long>()
+            val hudMs=mutableListOf<Long>()
+            var probes=0
+            var simultaneous=0
+            var offered=0
+            var staleOcr=0
+            var staleHud=0
+            val duration=45000L
+            while(SystemClock.elapsedRealtime()-startRun<duration){
+                val ms=SystemClock.elapsedRealtime()
+                if(ms>=nextOffer){
+                    rgba.position(0)
+                    v.offer(rgba,w,h,w*4,4,SystemClock.elapsedRealtimeNanos())
+                    offered++
+                    nextOffer=ms+1000L
+                }
+                val sample=v.snapshot()
+                val now=SystemClock.elapsedRealtimeNanos()
+                val tf=sample.text?.let{now-it.receivedNs in 0..2_500_000_000L}==true
+                val hf=sample.hud?.let{now-it.receivedNs in 0..1_500_000_000L}==true
+                probes++
+                if(tf&&hf)simultaneous++
+                if(sample.detectorCompleted>lastDetector){
+                    lastDetector=sample.detectorCompleted
+                    check(sample.detectorBackend=="YOLOX-Nano"&&sample.detectorStatus=="inference_ok"){"Detector backend changed: "+sample.detectorBackend}
+                    sample.detectorMs?.let{detectorMs+=it}
+                    report("CYCLE detector count="+lastDetector+" ms="+sample.detectorMs+" fresh="+(sample.tracks!=null))
+                }
+                if(sample.ocrCompleted>lastText){
+                    lastText=sample.ocrCompleted
+                    check(sample.ocrStatus=="inference_ok"&&(sample.ocrLastCount?:0)>0){"OCR cycle error"}
+                    sample.ocrMs?.let{textMs+=it}
+                    if(!tf)staleOcr++
+                    report("CYCLE OCR count="+lastText+" ms="+sample.ocrMs+" fresh="+tf)
+                }
+                if(sample.hudCompleted>lastHud){
+                    lastHud=sample.hudCompleted
+                    check(sample.hudStatus=="inference_ok"){"HUD cycle error"}
+                    sample.hudMs?.let{hudMs+=it}
+                    if(!hf)staleHud++
+                    report("CYCLE HUD count="+lastHud+" ms="+sample.hudMs+" fresh="+hf)
+                }
+                SystemClock.sleep(100)
+            }
+            fun summary(xs:List<Long>):String {
+                if(xs.isEmpty())return "n=0"
+                val a=xs.sorted()
+                return "n="+a.size+" min="+a.first()+" median="+a[a.size/2]+" max="+a.last()
+            }
+            report("PERF YOLOX "+summary(detectorMs))
+            report("PERF OCR "+summary(textMs)+" staleAtFirstRead="+staleOcr)
+            report("PERF HUD "+summary(hudMs)+" staleAtFirstRead="+staleHud)
+            report("PERF framesOffered="+offered+" simultaneousFresh="+simultaneous+"/"+probes+" (timing only; no game semantics)")
+            check(detectorMs.size>=2&&textMs.size>=2&&hudMs.size>=2){"Insufficient completed repeated cycles"}
+            report("PASS: repeated Android vision pipeline without backend failure")
+            // Verify resource policy with controlled inputs, not by overheating the emulator.
+            val clean=com.omega.core.meta.Health(.3,false,0,30.0,80,false,false,25.0)
+            val perf=com.omega.core.meta.Performance(0,null,0.0)
+            fun thermal(level:Int):com.omega.core.meta.Budget {
+                val health=clean.copy(thermal=level)
+                return com.omega.core.meta.MetaGovernor.trainingBudget(com.omega.core.meta.MetaGovernor().update(health,perf),health)
+            }
+            check(thermal(1).commands&&thermal(2).commands)
+            check(!thermal(3).commands&&!thermal(4).commands)
+            check(thermal(4).load==com.omega.core.meta.Load.STOP)
+            report("PASS: controlled thermal policy; moderate load permits commands, severe/critical protect device")
             passed=true
         }catch(t:Throwable){
             android.util.Log.e("OMEGA_EMULATOR","failure",t)
