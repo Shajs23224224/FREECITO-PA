@@ -95,7 +95,7 @@ class MainActivity : Activity() {
         val enabled=accessibilityEnabled()
         val connected=TouchBridge.connected()
         val armed=TouchBridge.isArmed()
-        accessStatus.text=when(enabled){true->"Accesibilidad: habilitada";false->"Accesibilidad: deshabilitada";null->"Accesibilidad: estado desconocido"}+" · "+(if(connected)"servicio conectado" else "servicio desconectado")+"\\n"+(if(armed)"Transporte de prueba activo" else "Gestos inactivos")
+        accessStatus.text=when(enabled){true->"Accesibilidad: habilitada";false->"Accesibilidad: deshabilitada";null->"Accesibilidad: estado desconocido"}+" · "+(if(connected)"servicio conectado" else "servicio desconectado")+"\n"+(if(armed)"Transporte de prueba activo" else "Gestos inactivos")
         accessLink.text=if(enabled==true)"Administrar accesibilidad" else "Configurar accesibilidad (opcional)"
         button.isEnabled=!awaitingConsent
     }
