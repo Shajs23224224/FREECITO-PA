@@ -29,7 +29,8 @@ data class VisionSnapshot(
     val tracks: TimedObservation<List<Track>>?,
     val text: TimedObservation<List<TextLine>>?,
     val relativeDepth: TimedObservation<List<Float>>?,
-    val detectorStatus: String, val ocrStatus: String, val depthStatus: String
+    val detectorStatus: String, val ocrStatus: String, val depthStatus: String,
+    val hud:TimedObservation<HudCandidates>?=null, val hudStatus:String="waiting"
 )
 
 /**
@@ -64,6 +65,7 @@ class VisionEngine(context: Context) : AutoCloseable {
     private val fast = Lane<List<Track>>(200_000_000L,1_500_000_000L)
     private val text = Lane<List<TextLine>>(1_500_000_000L,4_000_000_000L)
     private val depth = Lane<List<Float>>(5_000_000_000L,15_000_000_000L)
+    private val hud = Lane<HudCandidates>(900_000_000L,2_500_000_000L)
     private var lastFrame = -1L
     private var multiplier=1
     @Synchronized fun configureLoad(cadenceMultiplier:Int,ocrEnabled:Boolean,depthEnabled:Boolean){
@@ -83,15 +85,16 @@ class VisionEngine(context: Context) : AutoCloseable {
         if (closed.get() || frameNs <= lastFrame || frameNs < 0) return
         lastFrame=frameNs
         val now=SystemClock.elapsedRealtimeNanos()
-        val a=fast.reserve(now,multiplier); val b=text.reserve(now,multiplier); val c=depth.reserve(now,multiplier)
-        if (!a && !b && !c) return
+        val a=fast.reserve(now,multiplier); val b=text.reserve(now,multiplier); val c=depth.reserve(now,multiplier); val d=hud.reserve(now,multiplier)
+        if (!a && !b && !c && !d) return
         val pixels=try { Pixels.rgbaToArgb(buffer,w,h,row,pixel) } catch(e: IllegalArgumentException) {
-            if(a)fast.busy.set(false); if(b)text.busy.set(false); if(c)depth.busy.set(false)
+            if(a)fast.busy.set(false); if(b)text.busy.set(false); if(c)depth.busy.set(false); if(d)hud.busy.set(false)
             return
         }
         if(a) launch(fast,frameNs,now) { detect(pixels,w,h,frameNs) }
         if(b) launch(text,frameNs,now) { readText(pixels,w,h) }
         if(c) launch(depth,frameNs,now) { estimate(pixels,w,h) }
+        if(d) launch(hud,frameNs,now) { AutoHud.scan(pixels,w,h) }
     }
 
     private fun <T> launch(lane: Lane<T>,frameNs: Long,received: Long, work: ()->T?) {
@@ -185,14 +188,14 @@ class VisionEngine(context: Context) : AutoCloseable {
     @Synchronized fun snapshot(): VisionSnapshot {
         val now=SystemClock.elapsedRealtimeNanos()
         return VisionSnapshot(fast.current(now),text.current(now),depth.current(now),
-            fast.status.get(),text.status.get(),depth.status.get())
+            fast.status.get(),text.status.get(),depth.status.get(),hud.current(now),hud.status.get())
     }
     @Synchronized override fun close() {
         if(!closed.compareAndSet(false,true))return
-        fast.result.set(null); text.result.set(null); depth.result.set(null)
+        fast.result.set(null); text.result.set(null); depth.result.set(null); hud.result.set(null)
         fast.executor.execute { detector?.close(); detector=null }
         text.executor.execute { recognizer?.close(); recognizer=null }
         depth.executor.execute { depthSession?.close(); depthSession=null }
-        fast.executor.shutdown(); text.executor.shutdown(); depth.executor.shutdown()
+        fast.executor.shutdown(); text.executor.shutdown(); depth.executor.shutdown(); hud.executor.shutdown()
     }
 }

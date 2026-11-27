@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "1.0.6",
+  "version": "1.0.7",
   "status": "compressed_modules_executable_untrained",
   "main": 824,
   "intermediate": 32,
@@ -136,7 +136,8 @@
     "tracking": "visible IoU association",
     "model_execution": "Android not yet verified",
     "game_adapter": "unconfigured",
-    "auxiliary_models_not_counted_in_858": true
+    "auxiliary_models_not_counted_in_858": true,
+    "hud": "heuristic geometric candidates, not pretrained icon classifier"
   },
   "implemented_dense_independent_networks": 0,
   "trained_networks": 0,
@@ -158,13 +159,13 @@
     "policy_embedding_version": "rank17-gated-v1",
     "previous_policy_checkpoint": "preserved in legacy path; not reused with incompatible embedding"
   },
-  "agent_specialization_status": "35 conditional evidence slots; common evaluator",
+  "agent_specialization_status": "37 conditional evidence slots; common evaluator",
   "multi_agent": {
     "teams": 16,
     "roles_per_team": 10,
     "registered_and_executable_roles": 160,
     "fully_specialized_agents": 0,
-    "live_evidence_slots": 35,
+    "live_evidence_slots": 37,
     "default_active_roles": 4,
     "max_active_roles": 8,
     "history_rounds": 32,
@@ -291,7 +292,7 @@
     "energy": "battery percentage/temperature and power saver only; no watts or joules"
   },
   "release": {
-    "classification": "experimental real-screen movement/camera candidate",
+    "classification": "experimental automatic HUD movement; no device validation",
     "signature": "debug only; CI verifies",
     "abi": "arm64-v8a",
     "minimum_android_api": 26,
@@ -305,13 +306,13 @@
   "free_fire": {
     "package": "com.dts.freefireth",
     "launch": "Android public launcher intent",
-    "command_adapter": "experimental calibrated training movement and camera",
+    "command_adapter": "experimental automatic HUD movement discovery",
     "capture_enabled": true,
     "gameplay_validated": false
   },
   "accessibility": {
     "transport": "Android AccessibilityService dispatchGesture",
-    "target": "official Free Fire client, user-attested training with calibrated exact OCR marker",
+    "target": "official client, user-attested training, automatic OCR zone recognition and stable geometric control",
     "public_client_enabled": true,
     "configured": true,
     "gesture_max_ms": 500,
@@ -342,14 +343,17 @@
   },
   "training_live": {
     "minimum_api": 30,
-    "calibrated_actions": [
-      "move",
-      "camera"
-    ],
+    "calibrated_actions": [],
     "combat_controls_verified": false,
     "marker_required": true,
     "training_verified_on_device": false,
-    "receipt": "gesture delivery plus subsequent visual change proxy, not causal proof",
-    "real_experiences_verified": 0
+    "receipt": "two changed post-gesture frames above background noise, low-weight proxy not causal proof",
+    "real_experiences_verified": 0,
+    "automatic_actions": [
+      "move"
+    ],
+    "manual_calibration": false,
+    "hud_discovery": "concentric ring geometry + optional OCR label, repeated frame tracking, ambiguity rejection",
+    "camera_control": "not automatically verified"
   }
 }

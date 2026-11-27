@@ -20,6 +20,9 @@ object TrainingObservation {
     }
     fun markerPresent(marker:String,region:HudRegion,lines:List<HudLine>):Boolean =
         validMarker(marker)&&lines.any{region.contains(it.x,it.y)&&normalize(it.text)==normalize(marker)}
+    private val autoMarkers=setOf("campo de tiro","zona de tiro","zona de combate","target range","shooting range","combat zone","campo de treinamento","zona de treinamento","campo de entrenamiento","zona de entrenamiento")
+    fun automaticMarker(lines:List<HudLine>):String? =
+        lines.map{normalize(it.text)}.filter{it in autoMarkers}.distinct().singleOrNull()
     fun difference(before:FloatArray,after:FloatArray):Float? {
         if(before.size!=64||after.size!=64||before.any{!it.isFinite()||it !in 0f..1f}||after.any{!it.isFinite()||it !in 0f..1f})return null
         return before.indices.map{abs(before[it]-after[it])}.average().toFloat()

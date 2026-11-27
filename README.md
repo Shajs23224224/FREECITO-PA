@@ -99,3 +99,7 @@ Enlace opcional a Ajustes con explicación de permisos y estados habilitado/cone
 ## Entrenamiento real experimental v1.0.6
 
 Adaptador Free Fire con calibración visual de una captura elegida por el usuario, dos lecturas OCR de etiqueta exclusiva, captura local Android 11+ y gestos de movimiento/cámara. No está validado en un teléfono ni completa combate. Consulte `docs/TRAINING-LIVE.md`.
+
+## HUD automático v1.0.7
+
+Sin perfil ni calibración manual. Detección geométrica, OCR y seguimiento automático de candidatos; movimiento experimental, no validado en cliente físico. Véase `docs/AUTO-HUD.md`.
