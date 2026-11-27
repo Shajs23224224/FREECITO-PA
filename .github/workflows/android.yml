@@ -31,13 +31,17 @@ jobs:
           set -o pipefail
           mkdir -p build
           bash scripts/test-host.sh
+          bash scripts/test-lifecycle-host.sh
+          bash scripts/test-diagnostics-host.sh
           bash scripts/test-vision-host.sh
+          python3 scripts/test-vision-evaluator.py
           bash scripts/test-neural-host.sh
           bash scripts/test-agents-host.sh
           bash scripts/test-world-host.sh
           bash scripts/test-reason-host.sh
           bash scripts/test-executive-host.sh
           bash scripts/test-learning-host.sh
+          python3 scripts/test-persistence-host.py
           bash scripts/test-meta-host.sh | tee build/meta-benchmark.log
           bash scripts/test-release-host.sh | tee build/release-test.log
           python3 scripts/test-launcher-contract.py
@@ -51,6 +55,7 @@ jobs:
           python3 -m venv /tmp/omega-yolo
           /tmp/omega-yolo/bin/pip install 'numpy==1.26.4' 'onnxruntime==1.20.0'
           /tmp/omega-yolo/bin/python scripts/test-yolo-model.py
+          /tmp/omega-yolo/bin/python scripts/test-depth-model.py
       - name: Android build and lint
         run: gradle --no-daemon :app:assembleDebug :app:lintDebug :app:testDebugUnitTest --stacktrace
       - name: Verify artifact
@@ -59,24 +64,24 @@ jobs:
           cp build/meta-benchmark.log build/release-test.log dist/
           cp config/architecture.json docs/FASE-10.md docs/FREE-FIRE.md docs/ACCESSIBILITY.md docs/TACTICAL.md docs/RANK17.md docs/rank17-host-test.log docs/ACCESSIBILITY-UI.md docs/TRAINING-LIVE.md docs/AUTO-HUD.md docs/DIAGNOSTICS.md docs/ICON-HUD.md docs/YOLOX.md dist/
           cp vision/src/main/assets/models/MODEL_SHA256.txt vision/src/main/assets/models/YOLOX_LICENSE.txt dist/
-          cp app/build/outputs/apk/debug/app-debug.apk dist/OMEGA-v1.0.12-debug.apk
-          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose dist/OMEGA-v1.0.12-debug.apk
-          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging dist/OMEGA-v1.0.12-debug.apk | tee dist/apk-badging.txt
-          python3 scripts/verify-apk.py dist/OMEGA-v1.0.12-debug.apk dist/apk-badging.txt
+          cp app/build/outputs/apk/debug/app-debug.apk dist/OMEGA-v1.0.18-debug.apk
+          "$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --verbose dist/OMEGA-v1.0.18-debug.apk
+          "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging dist/OMEGA-v1.0.18-debug.apk | tee dist/apk-badging.txt
+          python3 scripts/verify-apk.py dist/OMEGA-v1.0.18-debug.apk dist/apk-badging.txt
           git rev-parse HEAD > dist/COMMIT.txt
           (cd dist && sha256sum *.apk > SHA256SUMS.txt)
       - uses: actions/upload-artifact@v4
         with:
-          name: OMEGA-v1.0.12-debug
+          name: OMEGA-v1.0.18-debug
           path: dist/
           if-no-files-found: error
       - name: Archive exact source commit
         run: |
           mkdir -p source-dist
-          git archive --format=zip --prefix=OMEGA-v1.0.12/ HEAD > source-dist/OMEGA-v1.0.12-source.zip
+          git archive --format=zip --prefix=OMEGA-v1.0.18/ HEAD > source-dist/OMEGA-v1.0.18-source.zip
           (cd source-dist && sha256sum *.zip > SHA256SUMS.txt)
       - uses: actions/upload-artifact@v4
         with:
-          name: OMEGA-v1.0.12-source
+          name: OMEGA-v1.0.18-source
           path: source-dist/
           if-no-files-found: error

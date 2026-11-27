@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "1.0.12",
+  "version": "1.0.18",
   "status": "compressed_modules_executable_untrained",
   "main": 824,
   "intermediate": 32,
@@ -164,6 +164,22 @@
       "game_specific_training": false,
       "physical_device_validation": false,
       "action_authority": false
+    },
+    "observation_health": {
+      "states": [
+        "WAITING",
+        "PROCESSING",
+        "VALID",
+        "EXPIRED",
+        "INVALID",
+        "PAUSED",
+        "FAILED"
+      ],
+      "age_from": "monotonic_receipt",
+      "completion_timestamp": true,
+      "exact_frame_groups_diagnostic_only": true,
+      "model_accuracy_validated": false,
+      "android_runtime_validated": false
     }
   },
   "implemented_dense_independent_networks": 0,
@@ -222,7 +238,10 @@
     "scope": "authorized game and version",
     "training": "not implemented",
     "android_runtime": "pending",
-    "procedural_condition": "confirmed owner API receipt only; no learned skills"
+    "procedural_condition": "confirmed owner API receipt only; no learned skills",
+    "persistence_schema": 2,
+    "environment_version_auto_detected": false,
+    "android_migration_validated": false
   },
   "reasoning": {
     "deduction": "acyclic rule graph; conservative four-valued facts",
@@ -282,7 +301,10 @@
     "reward_failure": -1,
     "unknown_reward": null,
     "training_separate": false,
-    "android_runtime": "pending"
+    "android_runtime": "pending",
+    "checkpoint_previous_generation": true,
+    "checkpoint_recovery_scope_checked": true,
+    "checkpoint_format_changed": false
   },
   "meta": {
     "modes": [
@@ -316,9 +338,29 @@
     "policy_guard": "disabled or rollback count >=4 and greater than successful updates",
     "quantization": "preexisting quantized depth model retained; FP32 upstream unchanged",
     "device_benchmark": "pending",
-    "energy": "battery percentage/temperature and power saver only; no watts or joules",
+    "energy": "battery level, temperature, power saver and optional device-wide current/charge counters; no per-process watts or joules",
     "training_economy_commands": "permitted with fresh verified scope and acceptable thermal/battery/memory readings",
-    "training_severe": "pause work while retaining session, recover with hysteresis"
+    "training_severe": "pause work while retaining session, recover with hysteresis",
+    "resource_states": [
+      "NORMAL",
+      "ECONOMY",
+      "LIMITED",
+      "RECOVERY",
+      "STOP"
+    ],
+    "latency_max_age_ms": 30000,
+    "recovery_readings_before_entry": 3,
+    "recovery_readings_before_economy": 3,
+    "recovery_budget": "LIMITED",
+    "explicit_resource_causes": true,
+    "resource_telemetry": {
+      "pss_interval_ms": 10000,
+      "system_memory_threshold_guard": true,
+      "native_heap_allocated_diagnostic": true,
+      "gc_counter_deltas": true,
+      "battery_device_counters": true,
+      "physical_profile_validated": false
+    }
   },
   "release": {
     "classification": "experimental floating accessibility controls and current observation diagnostics",
@@ -406,7 +448,7 @@
   },
   "diagnostics": {
     "persistent_trace": true,
-    "max_entries": 100,
+    "max_entries": 120,
     "stores_screenshots": false,
     "stores_ocr_text": false,
     "stages": [
@@ -421,7 +463,19 @@
       "executive",
       "gesture",
       "neural",
-      "process"
+      "process",
+      "diagnostics",
+      "detector",
+      "ocr",
+      "hud",
+      "depth",
+      "resource_health",
+      "resource_memory",
+      "resource_counters",
+      "resource_transition",
+      "resource_probe",
+      "lifecycle",
+      "persistence"
     ],
     "screenshot_worker": true,
     "screenshot_timeout_ms": 5000,
@@ -429,6 +483,27 @@
     "max_capture_errors": 3,
     "training_depth_enabled": false,
     "device_validation": false,
-    "vision_completion_counters": true
+    "vision_completion_counters": true,
+    "max_scopes": 5,
+    "schema": 2,
+    "export": "JSONL via user-selected SAF document",
+    "persistence_interval_ms": 2000,
+    "exception_messages": false,
+    "android_runtime_validated": false
+  },
+  "session_lifecycle": {
+    "states": [
+      "IDLE",
+      "STARTING",
+      "RUNNING",
+      "STOPPING",
+      "BLOCKED"
+    ],
+    "session_token_fence": true,
+    "async_model_teardown": true,
+    "worker_drain_timeout_ms": 15000,
+    "ocr_wait_timeout_ms": 4000,
+    "restart_after_cleanup_failure": false,
+    "android_runtime_validated": false
   }
 }

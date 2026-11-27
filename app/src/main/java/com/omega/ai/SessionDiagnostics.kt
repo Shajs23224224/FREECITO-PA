@@ -2,38 +2,61 @@ package com.omega.ai
 
 import android.content.Context
 import android.os.SystemClock
-import android.util.Log
+import com.omega.core.diagnostics.DiagnosticJournal
+import com.omega.core.diagnostics.DiagnosticJournal.Severity
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
-/** Bounded private diagnostic trace. No frames, OCR contents, account data or coordinates. */
+/** Private bounded telemetry. Call sites must supply technical metadata, never raw input. */
 internal object SessionDiagnostics {
     private var prefs:android.content.SharedPreferences?=null
-    private val entries=java.util.ArrayDeque<String>()
-    private val last=mutableMapOf<String,Pair<String,Long>>()
-    private var running=false
+    private val journal=DiagnosticJournal(monotonic=SystemClock::elapsedRealtime)
+    private val writer=Executors.newSingleThreadScheduledExecutor()
+    private var scheduled=false
+    @Volatile private var persistenceFailed=false
     @Synchronized fun initialize(context:Context){
-        val p=context.getSharedPreferences("omega_diagnostic_v1",Context.MODE_PRIVATE)
+        if(prefs!=null)return
+        val p=context.getSharedPreferences("omega_diagnostic_v2",Context.MODE_PRIVATE)
         prefs=p
-        p.getString("trace","")?.lineSequence()?.filter{it.isNotBlank()}?.take(100)?.forEach{entries.addLast(it)}
-        if(p.getBoolean("running",false))event("process","previous_process_interrupted",true)
-        running=false;save()
+        val raw=p.getString("journal",null)
+        if(raw!=null){
+            runCatching{journal.restore(DiagnosticJournal.decode(raw))}.onFailure{
+                journal.append("diagnostics","restore_failed",Severity.ERROR,DiagnosticJournal.exceptionDetail(it),true)
+            }
+        }else{
+            // Legacy free-text traces are not re-imported into the structured export.
+            val legacy=context.getSharedPreferences("omega_diagnostic_v1",Context.MODE_PRIVATE)
+            if(legacy.getBoolean("running",false))journal.append("process","previous_process_interrupted",Severity.WARNING,"legacy session",true)
+        }
+        scheduleSave()
     }
-    @Synchronized fun begin(){
-        entries.clear();last.clear();running=true;event("session","start v1.0.12",true)
+    @Synchronized fun begin(session:String){journal.begin(session,"1.0.18");scheduleSave()}
+    @Synchronized fun end(reason:String){journal.end(reason);scheduleSave()}
+    @Synchronized fun event(stage:String,detail:String,force:Boolean=false,expectedSession:String?=null){
+        val event=detail.substringBefore(' ').substringBefore(':').substringBefore('=')
+        val severity=when {
+            stage=="resource_transition"&&detail.contains("->STOP")->Severity.CRITICAL
+            detail.contains("error",true)||detail.contains("failed",true)->Severity.ERROR
+            stage=="resource_transition"||detail.contains("timeout")||detail.contains("rejected")||detail.startsWith("resource_pause")->Severity.WARNING
+            else->Severity.INFO
+        }
+        if(journal.append(stage,event,severity,detail,force,expectedSession))scheduleSave()
     }
-    @Synchronized fun end(reason:String){
-        if(running){running=false;event("session","stop "+reason,true)}
+    @Synchronized fun failure(stage:String,event:String,error:Throwable,expectedSession:String?=null){
+        if(journal.append(stage,event,Severity.ERROR,DiagnosticJournal.exceptionDetail(error),true,expectedSession))scheduleSave()
     }
-    @Synchronized fun event(stage:String,detail:String,force:Boolean=false){
-        val now=SystemClock.elapsedRealtime()
-        val safe=detail.replace('\n',' ').take(220)
-        val prior=last[stage]
-        if(!force&&prior!=null&&prior.first==safe&&now-prior.second<8000)return
-        if(!force&&prior!=null&&now-prior.second<1000)return
-        last[stage]=safe to now
-        entries.addLast("${System.currentTimeMillis()} | $stage | $safe")
-        while(entries.size>100)entries.removeFirst()
-        Log.i("OMEGA_DIAG","$stage | $safe");save()
+    @Synchronized fun metric(stage:String,event:String,detail:String){
+        if(journal.append(stage,event,Severity.DEBUG,detail))scheduleSave()
     }
-    @Synchronized fun report()=if(entries.isEmpty())"Sin sesiones registradas" else entries.joinToString("\n")
-    private fun save(){prefs?.edit()?.putString("trace",entries.joinToString("\n"))?.putBoolean("running",running)?.apply()}
+    fun report(maxEntries:Int=Int.MAX_VALUE):String=journal.snapshot().entries.takeLast(maxEntries).joinToString("\n"){it.json()}
+    fun hasPersistenceError()=persistenceFailed
+    // Single writer, coalescing disk writes. A process kill can lose recent unflushed events.
+    private fun scheduleSave(){
+        if(scheduled||prefs==null)return
+        scheduled=true
+        writer.schedule({
+            val pair=synchronized(this){scheduled=false; prefs to journal.snapshot()}
+            persistenceFailed=runCatching{pair.first?.edit()?.putString("journal",DiagnosticJournal.encode(pair.second))?.commit()!=true}.getOrDefault(true)
+        },2,TimeUnit.SECONDS)
+    }
 }

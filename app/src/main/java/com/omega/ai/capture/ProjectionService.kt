@@ -25,12 +25,13 @@ class ProjectionService : Service() {
     private var worker: Handler? = null
     private var projection: MediaProjection? = null
     private var display: VirtualDisplay? = null
-    private var reader: ImageReader? = null
-    private var closing=false
+    @Volatile private var reader: ImageReader? = null
+    @Volatile private var sessionToken:String?=null
+    @Volatile private var closing=false
     private var density=0
     private var width=0; private var height=0
     private val scopeGuard = object : Runnable { override fun run() {
-        if(!GameBinding.canCapture()) shutdown("scope_lost") else if(!RuntimeSession.resourceHealthy()) shutdown("resource_stop") else main.postDelayed(this,250)
+        if(sessionToken!=RuntimeSession.token()||!GameBinding.canCapture()) shutdown("scope_lost") else if(!RuntimeSession.resourceHealthy()) shutdown("resource_stop") else main.postDelayed(this,250)
     } }
     private val callback = object : MediaProjection.Callback() {
         override fun onStop() { shutdown("projection_revoked") }
@@ -40,7 +41,8 @@ class ProjectionService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
     override fun onStartCommand(intent: Intent?, flags:Int, startId:Int): Int {
         if(intent?.action=="STOP") { shutdown("user_stop"); return START_NOT_STICKY }
-        if(projection!=null) return START_NOT_STICKY
+        if(projection!=null||closing) return START_NOT_STICKY
+        sessionToken=RuntimeSession.token()
         try {
             val nm=getSystemService(NotificationManager::class.java)
             nm.createNotificationChannel(NotificationChannel("omega_capture","OMEGA · sesión",NotificationManager.IMPORTANCE_LOW))
@@ -60,6 +62,7 @@ class ProjectionService : Service() {
             val wm=getSystemService(WindowManager::class.java)
             val (w,h)=if(Build.VERSION.SDK_INT>=30) wm.maximumWindowMetrics.bounds.let { it.width() to it.height() } else metrics.widthPixels to metrics.heightPixels
             val (sw,sh)=bounded(w,h); width=sw; height=sh
+            sessionToken=RuntimeSession.token() ?: error("Session unavailable")
             reader=createReader(sw,sh)
             check(RuntimeSession.beginCapture())
             display=projection!!.createVirtualDisplay("OMEGA",sw,sh,density,DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,reader!!.surface,null,main) ?: error("Virtual display unavailable")
@@ -71,12 +74,13 @@ class ProjectionService : Service() {
     private fun createReader(w:Int,h:Int): ImageReader = ImageReader.newInstance(w,h,PixelFormat.RGBA_8888,2).also { r ->
         r.setOnImageAvailableListener({ src ->
             try {
+                if(closing||src!==reader)return@setOnImageAvailableListener
                 src.acquireLatestImage()?.use { image ->
-                    if(!GameBinding.canCapture()) { main.post { shutdown("scope_lost") }; return@use }
+                    if(sessionToken!=RuntimeSession.token()||!GameBinding.canCapture()) { main.post { if(!closing&&src===reader)shutdown("scope_lost") }; return@use }
                     val p=image.planes.firstOrNull() ?: return@use
-                    RuntimeSession.submit(p.buffer,image.width,image.height,p.rowStride,p.pixelStride,image.timestamp)
+                    if(!closing&&src===reader)RuntimeSession.submit(p.buffer,image.width,image.height,p.rowStride,p.pixelStride,image.timestamp,sessionToken)
                 }
-            } catch(e: Exception) { main.post { shutdown("frame_error") } }
+            } catch(e: Exception) { main.post { if(!closing&&src===reader)shutdown("frame_error") } }
         },worker)
     }
     private fun resize(w:Int,h:Int) {
@@ -84,14 +88,15 @@ class ProjectionService : Service() {
         val next=createReader(sw,sh); val old=reader
         try { display?.resize(sw,sh,density); display?.setSurface(next.surface); reader=next; width=sw; height=sh }
         catch(e: Exception) { next.close(); throw e }
-        old?.setOnImageAvailableListener(null,null); old?.close()
+        old?.setOnImageAvailableListener(null,null); if(old!=null){val handler=worker;if(handler==null||!handler.post{old.close()})old.close()}
     }
     private fun shutdown(reason:String) {
         if(closing)return; closing=true; main.removeCallbacks(scopeGuard)
-        RuntimeSession.stop(reason)
+        sessionToken?.let{RuntimeSession.stop(reason,it)}
         runCatching { reader?.setOnImageAvailableListener(null,null) }
         runCatching { display?.release() }; display=null
-        runCatching { reader?.close() }; reader=null
+        val old=reader;reader=null
+        if(old!=null){val handler=worker;if(handler==null||!handler.post{runCatching{old.close()}})runCatching{old.close()}}
         runCatching { projection?.unregisterCallback(callback); projection?.stop() }; projection=null
         thread?.quitSafely(); thread=null; worker=null
         stopForeground(STOP_FOREGROUND_REMOVE); stopSelf()

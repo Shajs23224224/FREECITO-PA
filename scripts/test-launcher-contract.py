@@ -22,8 +22,10 @@ assert 'TrainingObservation.automaticMarker' in adapter and 'consecutive>=2' in 
 assert not json.loads((root/'config/architecture.json').read_text())['free_fire']['gameplay_validated']
 diagnostics=(java/'SessionDiagnostics.kt').read_text()
 service_code=(java/'accessibility/OmegaTouchService.kt').read_text()
-assert 'Ver diagnóstico de última sesión' in ui and 'SessionDiagnostics.report()' in ui
-assert 'previous_process_interrupted' in diagnostics and 'entries.size>100' in diagnostics
+assert 'Ver diagnóstico e historial' in ui and 'SessionDiagnostics.report()' in ui
+journal=(root/'core-native/src/main/java/com/omega/core/diagnostics/DiagnosticJournal.kt').read_text()
+assert 'previous_process_interrupted' in journal and 'maxEntries: Int = 120' in journal
+assert 'ACTION_CREATE_DOCUMENT' in ui and 'exportDiagnostic' in ui and 'omega_diagnostic_v2' in diagnostics
 assert 'imageWorker.execute' in service_code and 'screenshot_timeout' in service_code and 'foreground_or_geometry_timeout' in service_code
 assert 'waiting_training_marker' in adapter and 'waiting_hud' in adapter
 assert 'HudActionPolicy.gesture' in adapter and 'TrainingObservation.contextualMarker' in adapter and 'TrainingObservation.medkits' in adapter

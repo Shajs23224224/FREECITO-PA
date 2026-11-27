@@ -7,8 +7,8 @@ android {
         minSdk = 26
         targetSdk = 35
         testInstrumentationRunner = "com.omega.ai.OmegaEmulatorTest"
-        versionCode = 22
-        versionName = "1.0.12"
+        versionCode = 28
+        versionName = "1.0.18"
         ndk { abiFilters += listOf(if (project.findProperty("omegaEmulator") == "true") "x86_64" else "arm64-v8a") }
     }
     androidResources { noCompress += listOf("tflite","onnx") }

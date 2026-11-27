@@ -14,3 +14,6 @@ java -jar "$build/ocr-cache-test.jar"
 
 kotlinc vision/src/main/java/com/omega/vision/UniformMarginCrop.kt tests/UniformMarginCropSmoke.kt -jvm-target 17 -include-runtime -d "$build/ocr-crop-test.jar"
 java -jar "$build/ocr-crop-test.jar"
+
+kotlinc vision/src/main/java/com/omega/vision/ObservationHealth.kt tests/ObservationHealthSmoke.kt -jvm-target 17 -include-runtime -d "$build/observation-health-test.jar"
+java -jar "$build/observation-health-test.jar"

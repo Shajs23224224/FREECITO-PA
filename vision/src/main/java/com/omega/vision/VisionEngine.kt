@@ -8,6 +8,9 @@ import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
 import com.google.android.gms.tasks.Tasks
+import com.google.android.gms.tasks.Task
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.vision.core.RunningMode
@@ -24,7 +27,6 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
 data class TextLine(val text: String, val box: Box?)
-data class TimedObservation<T>(val frameNs: Long, val receivedNs: Long, val value: T)
 data class VisionSnapshot(
     val tracks: TimedObservation<List<Track>>?,
     val text: TimedObservation<List<TextLine>>?,
@@ -34,11 +36,14 @@ data class VisionSnapshot(
     val hudCompleted:Long=0,val hudMs:Long?=null,val hudLastCount:Int?=null,val ocrCompleted:Long=0,val ocrMs:Long?=null,val ocrLastCount:Int?=null,
     val detectorBackend:String="not_loaded",val detectorCompleted:Long=0,val detectorMs:Long?=null,val detectorLastCount:Int?=null,
     val ocrCacheHits:Long=0,val ocrInferenceCount:Long=0,val ocrInferenceMs:Long?=null,
-    val ocrInputPixels:Int?=null,val ocrSourcePixels:Int?=null
+    val ocrInputPixels:Int?=null,val ocrSourcePixels:Int?=null,
+    val depthCompleted:Long=0,val depthMs:Long?=null,val depthLastCount:Int?=null,
+    val observationHealth:Map<String,ObservationHealth> = emptyMap(),
+    val frameGroups:Map<Long,List<String>> = emptyMap()
 )
 
 /**
- * Authorized frame consumer only. Three single-worker lanes, no frame backlog,
+ * Authorized frame consumer only. Four single-worker lanes, no frame backlog,
  * independent cadence, no game actions, no image/text persistence or network.
  * General-domain pretrained models are NOT a verified game-specific ontology.
  */
@@ -67,7 +72,14 @@ class VisionEngine(context: Context) : AutoCloseable {
             last=now; return true
         }
         fun current(now: Long): TimedObservation<T>? =
-            result.get()?.takeIf { now >= it.receivedNs && now-it.receivedNs <= ttlNs }
+            ObservationTiming.fresh(result.get(),now,ttlNs)
+        fun health(now:Long)=ObservationTiming.health(result.get(),now,ttlNs,enabled,busy.get(),status.get())
+        fun displayStatus(now:Long):String=when(health(now).state){
+            ObservationState.EXPIRED -> "observation_expired"
+            ObservationState.INVALID -> if(status.get()=="inference_ok") "invalid_observation_time" else status.get()
+            ObservationState.PROCESSING -> "processing"
+            else -> status.get()
+        }
     }
     private val fast = Lane<List<Track>>(1_500_000_000L,2_500_000_000L)
     private val text = Lane<List<TextLine>>(1_000_000_000L,4_000_000_000L)
@@ -85,7 +97,11 @@ class VisionEngine(context: Context) : AutoCloseable {
     private var yoloFailed=false
     @Volatile private var detectorBackend="not_loaded"
     private var recognizer: TextRecognizer? = null
-    private var ocrBitmap:Bitmap?=null
+    // OCR lane owns these references until the asynchronous task completes.
+    private var pendingOcr:Task<*>?=null
+    private var pendingBitmap:Bitmap?=null
+    private val deferredOcrClose=AtomicBoolean(false)
+    private val cleanupFailed=AtomicBoolean(false)
     private val ocrCache=ExactFrameCache<List<TextLine>>(8_000_000_000L)
     private var ocrCacheGeneration=-1L
     private var ocrCacheHits=0L
@@ -106,7 +122,8 @@ class VisionEngine(context: Context) : AutoCloseable {
         val a=fast.reserve(now,multiplier); val b=text.reserve(now,multiplier); val c=depth.reserve(now,multiplier); val d=hud.reserve(now,multiplier)
         if (!a && !b && !c && !d) return
         val pixels=try { Pixels.rgbaToArgb(buffer,w,h,row,pixel) } catch(e: IllegalArgumentException) {
-            if(a)fast.busy.set(false); if(b)text.busy.set(false); if(c)depth.busy.set(false); if(d)hud.busy.set(false)
+            fun invalid(lane:Lane<*>){lane.status.set("invalid_frame");lane.result.set(null);lane.busy.set(false)}
+            if(a)invalid(fast); if(b)invalid(text); if(c)invalid(depth); if(d)invalid(hud)
             return
         }
         if(a) launch(fast,frameNs,now) { detect(pixels,w,h,frameNs) }
@@ -117,17 +134,18 @@ class VisionEngine(context: Context) : AutoCloseable {
 
     private fun <T> launch(lane: Lane<T>,frameNs: Long,received: Long, work: ()->T?) {
         val generation=lane.generation
-        lane.executor.execute {
+        try { lane.executor.execute {
             try {
                 if (!closed.get()) {
                     val started=SystemClock.elapsedRealtimeNanos()
                     val value=work()
-                    val elapsed=(SystemClock.elapsedRealtimeNanos()-started)/1_000_000L
+                    val finished=SystemClock.elapsedRealtimeNanos()
+                    val elapsed=(finished-started)/1_000_000L
                     synchronized(this) {
                         if (!closed.get() && lane.enabled && generation==lane.generation) {
                             lane.completed++;lane.durationMs=elapsed
                             lane.outputCount=when(value){is HudCandidates->value.icons.size;is List<*>->value.size;else->null}
-                            lane.result.set(value?.let { TimedObservation(frameNs,received,it) })
+                            lane.result.set(value?.let { TimedObservation(frameNs,received,it,finished) })
                             lane.status.set(if(value==null) "no_valid_output" else "inference_ok")
                         }
                     }
@@ -137,6 +155,8 @@ class VisionEngine(context: Context) : AutoCloseable {
             } catch(e: LinkageError) {
                 synchronized(this) { if(!closed.get() && lane.enabled && generation==lane.generation) { lane.result.set(null); lane.status.set("backend_unavailable") } }
             } finally { lane.busy.set(false) }
+        } } catch(e:java.util.concurrent.RejectedExecutionException){
+            lane.busy.set(false);lane.status.set("worker_unavailable")
         }
     }
     private fun bitmap(pixels: IntArray,w: Int,h: Int)=Bitmap.createBitmap(pixels,w,h,Bitmap.Config.ARGB_8888)
@@ -165,19 +185,25 @@ class VisionEngine(context: Context) : AutoCloseable {
                 .setRunningMode(RunningMode.IMAGE).setScoreThreshold(.35f).setMaxResults(32).build()
         ).also { detector=it }
         val bmp=bitmap(pixels,w,h)
-        val image=BitmapImageBuilder(bmp).build()
         try {
-            val observations=model.detect(image).detections().mapNotNull { d ->
-                val cat=d.categories().maxByOrNull { it.score() } ?: return@mapNotNull null
-                val label=cat.categoryName().ifBlank { "unknown" }
-                val box=normalized(d.boundingBox(),w,h) ?: return@mapNotNull null
-                if(cat.score().isFinite() && cat.score() in 0f..1f) Detection(label,cat.score(),box) else null
-            }
-            if(w!=trackerW || h!=trackerH) { tracker=VisibleTracker(ttlNs=4_000_000_000L); trackerW=w; trackerH=h }
-            return tracker.update(ts,observations)
-        } finally { image.close(); bmp.recycle() }
+            val image=BitmapImageBuilder(bmp).build()
+            try {
+                val observations=model.detect(image).detections().mapNotNull { d ->
+                    val cat=d.categories().maxByOrNull { it.score() } ?: return@mapNotNull null
+                    val label=cat.categoryName().ifBlank { "unknown" }
+                    val box=normalized(d.boundingBox(),w,h) ?: return@mapNotNull null
+                    if(cat.score().isFinite() && cat.score() in 0f..1f) Detection(label,cat.score(),box) else null
+                }
+                if(w!=trackerW || h!=trackerH) { tracker=VisibleTracker(ttlNs=4_000_000_000L); trackerW=w; trackerH=h }
+                return tracker.update(ts,observations)
+            } finally { image.close() }
+        } finally { bmp.recycle() }
     }
     private fun readText(pixels:IntArray,w:Int,h:Int,frameNs:Long,generation:Long):List<TextLine>{
+        pendingOcr?.let { task ->
+            if(!task.isComplete)throw TimeoutException("previous OCR still running")
+            pendingBitmap?.recycle();pendingBitmap=null;pendingOcr=null
+        }
         if(ocrCacheGeneration!=generation){ocrCache.clear();ocrCacheGeneration=generation}
         // A new input must be exactly identical; no approximate matching.
         ocrCache.lookup(pixels,w,h,frameNs)?.let { cached ->
@@ -188,10 +214,17 @@ class VisionEngine(context: Context) : AutoCloseable {
         val roi=UniformMarginCrop.find(pixels,w,h)
         val started=SystemClock.elapsedRealtimeNanos()
         fun recognize(r:OcrRegion):List<TextLine>{
-            val bmp=ocrBitmap?.takeIf{it.width==r.width&&it.height==r.height&&!it.isRecycled}
-                ?: Bitmap.createBitmap(r.width,r.height,Bitmap.Config.ARGB_8888).also { ocrBitmap?.recycle();ocrBitmap=it }
-            bmp.setPixels(pixels,r.y*w+r.x,w,0,0,r.width,r.height)
-            val result=Tasks.await(client.process(InputImage.fromBitmap(bmp,0)))
+            val bmp=Bitmap.createBitmap(r.width,r.height,Bitmap.Config.ARGB_8888)
+            var task:Task<com.google.mlkit.vision.text.Text>?=null
+            val result=try {
+                bmp.setPixels(pixels,r.y*w+r.x,w,0,0,r.width,r.height)
+                val submitted=client.process(InputImage.fromBitmap(bmp,0));task=submitted
+                Tasks.await(submitted, 4, TimeUnit.SECONDS)
+            } finally {
+                val active=task
+                if(active!=null&&!active.isComplete){pendingOcr=active;pendingBitmap=bmp}
+                else bmp.recycle()
+            }
             return result.textBlocks.flatMap { it.lines }.take(100).map { l ->
                 TextLine(l.text.take(256),l.boundingBox?.let { box ->
                     normalized(RectF((box.left+r.x).toFloat(),(box.top+r.y).toFloat(),(box.right+r.x).toFloat(),(box.bottom+r.y).toFloat()),w,h)
@@ -228,10 +261,11 @@ class VisionEngine(context: Context) : AutoCloseable {
         }
         // Fixed 518x518 input; aspect-ratio distortion is an experimental approximation.
         val src=bitmap(pixels,w,h)
-        val scaled=Bitmap.createScaledBitmap(src,518,518,true)
-        val rgb=IntArray(518*518)
-        try { scaled.getPixels(rgb,0,518,0,0,518,518) }
-        finally { if(scaled!==src)scaled.recycle(); src.recycle() }
+        val rgb=try {
+            val scaled=Bitmap.createScaledBitmap(src,518,518,true)
+            try { IntArray(518*518).also { scaled.getPixels(it,0,518,0,0,518,518) } }
+            finally { if(scaled!==src)scaled.recycle() }
+        } finally { src.recycle() }
         val data=Pixels.depthInput(rgb)
         OnnxTensor.createTensor(env,FloatBuffer.wrap(data),longArrayOf(1,3,518,518)).use { tensor ->
             session.run(mapOf("pixel_values" to tensor),setOf("predicted_depth")).use { result ->
@@ -248,15 +282,39 @@ class VisionEngine(context: Context) : AutoCloseable {
     }
     @Synchronized fun snapshot(): VisionSnapshot {
         val now=SystemClock.elapsedRealtimeNanos()
-        return VisionSnapshot(fast.current(now),text.current(now),depth.current(now),
-            fast.status.get(),text.status.get(),depth.status.get(),hud.current(now),hud.status.get(),hud.completed,hud.durationMs,hud.outputCount,text.completed,text.durationMs,text.outputCount,detectorBackend,fast.completed,fast.durationMs,fast.outputCount,ocrCacheHits,ocrInferenceCount,ocrInferenceMs,ocrInputPixels,ocrSourcePixels)
+        val a=fast.current(now);val b=text.current(now);val c=depth.current(now);val d=hud.current(now)
+        val health=mapOf("detector" to fast.health(now),"ocr" to text.health(now),"depth" to depth.health(now),"hud" to hud.health(now))
+        return VisionSnapshot(a,b,c,
+            fast.displayStatus(now),text.displayStatus(now),depth.displayStatus(now),d,hud.displayStatus(now),hud.completed,hud.durationMs,hud.outputCount,text.completed,text.durationMs,text.outputCount,detectorBackend,fast.completed,fast.durationMs,fast.outputCount,ocrCacheHits,ocrInferenceCount,ocrInferenceMs,ocrInputPixels,ocrSourcePixels,
+            depth.completed,depth.durationMs,depth.outputCount,health,ObservationTiming.frameGroups(mapOf("detector" to a,"ocr" to b,"depth" to c,"hud" to d)))
+    }
+    fun terminated()=listOf(fast,text,depth,hud).all{it.executor.isTerminated} &&
+        !deferredOcrClose.get() && !cleanupFailed.get()
+    private fun cleanup(block:()->Unit){try{block()}catch(e:Throwable){cleanupFailed.set(true)}}
+    private fun closeLane(lane:Lane<*>,block:()->Unit){
+        try{lane.executor.execute{cleanup(block)}}
+        catch(e:java.util.concurrent.RejectedExecutionException){cleanupFailed.set(true)}
+        finally{lane.executor.shutdown()}
     }
     @Synchronized override fun close() {
         if(!closed.compareAndSet(false,true))return
-        fast.result.set(null); text.result.set(null); depth.result.set(null); hud.result.set(null)
-        fast.executor.execute { yolo?.close();yolo=null;detector?.close(); detector=null }
-        text.executor.execute { recognizer?.close(); recognizer=null;ocrBitmap?.recycle();ocrBitmap=null;ocrCache.clear() }
-        depth.executor.execute { depthSession?.close(); depthSession=null }
-        fast.executor.shutdown(); text.executor.shutdown(); depth.executor.shutdown(); hud.executor.shutdown()
+        listOf(fast,text,depth,hud).forEach{it.configure(false)}
+        closeLane(fast){cleanup{yolo?.close()};yolo=null;cleanup{detector?.close()};detector=null}
+        closeLane(text){
+            val task=pendingOcr
+            fun release(){
+                cleanup{recognizer?.close()};recognizer=null
+                cleanup{pendingBitmap?.recycle()};pendingBitmap=null;pendingOcr=null
+                cleanup{ocrCache.clear()}
+            }
+            if(task!=null&&!task.isComplete){
+                deferredOcrClose.set(true)
+                task.addOnCompleteListener(java.util.concurrent.Executor{it.run()}){
+                    try{release()}finally{deferredOcrClose.set(false)}
+                }
+            }else release()
+        }
+        closeLane(depth){depthSession?.close();depthSession=null}
+        closeLane(hud){}
     }
 }
