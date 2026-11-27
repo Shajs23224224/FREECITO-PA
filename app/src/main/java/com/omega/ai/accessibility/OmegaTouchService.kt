@@ -84,10 +84,10 @@ class OmegaTouchService:AccessibilityService(){
         if(game){
             ensurePanel()
             val active=observing&&RuntimeSession.status().active
-            startButton?.isEnabled=!active
+            startButton?.isEnabled=!active&&RuntimeSession.canStart()
             pauseButton?.isEnabled=active
-            panelStatus?.text=if(!active)panelText else when{
-                RuntimeSession.capturePaused()->"Enfriamiento"
+            panelStatus?.text=if(!active&&RuntimeSession.isClosing())"Cerrando sesión" else if(!active&&!RuntimeSession.canStart())"Cierre incompleto" else if(!active)panelText else when{
+                RuntimeSession.capturePaused()->RuntimeSession.resourceLabel()
                 TouchBridge.isArmed()->"Gestos habilitados"
                 else->GameBinding.training?.status()?.take(68) ?: "Esperando evidencia"
             }
@@ -125,7 +125,7 @@ class OmegaTouchService:AccessibilityService(){
             }
         }
         try{wm.addView(box,lp);panel=box;panelStatus=label;startButton=start;pauseButton=pause}
-        catch(e:Exception){SessionDiagnostics.event("panel","show_failed:"+e.javaClass.simpleName,true)}
+        catch(e:Exception){SessionDiagnostics.failure("panel","show_failed",e)}
     }
     private fun removePanel(){
         panel?.let{runCatching{wm.removeViewImmediate(it)}}
@@ -144,7 +144,7 @@ class OmegaTouchService:AccessibilityService(){
         panelStatus?.text=panelText;startButton?.isEnabled=true;pauseButton?.isEnabled=false
     }
     private fun resumeFromPanel(){
-        if(observing||rootInActiveWindow?.packageName?.toString()!=FreeFireLauncher.PACKAGE)return
+        if(observing||!RuntimeSession.canStart()||rootInActiveWindow?.packageName?.toString()!=FreeFireLauncher.PACKAGE)return
         GameBinding.beginTraining()
         if(RuntimeSession.start()&&startObservation()){panelText="Buscando entrenamiento";SessionDiagnostics.event("panel","resumed_new_session",true)}
         else{keepPanelOnStop=true;try{RuntimeSession.stop("floating_start_failed")}finally{keepPanelOnStop=false};panelText="No se pudo iniciar"}
@@ -160,6 +160,8 @@ class OmegaTouchService:AccessibilityService(){
     }
     private val imageWorker=Executors.newSingleThreadExecutor()
     @Volatile private var observing=false
+    @Volatile private var currentGeometry:Rect?=null
+    private var observationToken:String?=null
     private var seenGame=false
     private var startedAt=0L
     private var screenshotPending=false
@@ -175,6 +177,7 @@ class OmegaTouchService:AccessibilityService(){
         val target=root?.packageName?.toString()==FreeFireLauncher.PACKAGE
         val bounds=Rect();root?.getBoundsInScreen(bounds)
         val geometry=target&&adapter.matches(bounds.width(),bounds.height())
+        currentGeometry=if(geometry)Rect(bounds) else null
         adapter.foreground(geometry)
         if(!geometry){
             TouchBridge.disarm()
@@ -188,32 +191,37 @@ class OmegaTouchService:AccessibilityService(){
             if(!RuntimeSession.status().capturing&&!RuntimeSession.beginCapture()){finishObservation("capture_init_failed");return}
             if(!RuntimeSession.resourceHealthy()){finishObservation("resource_stop");return}
             if(screenshotPending&&SystemClock.elapsedRealtime()-requestAt>5000){finishObservation("screenshot_timeout");return}
-            if(RuntimeSession.capturePaused())SessionDiagnostics.event("capture","cooldown_session_alive") else if(!screenshotPending)captureFrame(bounds)
+            if(RuntimeSession.capturePaused())SessionDiagnostics.event("capture","resource_pause: ${RuntimeSession.resourceLabel()}") else if(!screenshotPending)captureFrame(bounds)
         }
         main.postDelayed(this,RuntimeSession.captureDelayMs())
     }}
     internal fun startObservation():Boolean{
         if(Build.VERSION.SDK_INT<30||observing)return false
+        observationToken=RuntimeSession.token() ?: return false
         observing=true;seenGame=false;missingSince=-1;captureErrors=0;startedAt=SystemClock.elapsedRealtime();epoch++;panelEnabled=true;main.removeCallbacks(panelPoll);main.post(panelPoll);SessionDiagnostics.event("capture","poll_started",true);main.post(poll);return true
     }
     internal fun stopObservation(){
-        observing=false;epoch++;screenshotPending=false;main.removeCallbacks(poll);TouchBridge.disarm();if(!keepPanelOnStop)dismissPanel()
+        if(Looper.myLooper()!=Looper.getMainLooper()){val generation=epoch;main.post{if(epoch==generation)stopObservation()};return}
+        observing=false;observationToken=null;epoch++;currentGeometry=null;screenshotPending=false;main.removeCallbacks(poll);TouchBridge.disarm();if(!keepPanelOnStop)dismissPanel()
     }
-    private fun finishObservation(reason:String){SessionDiagnostics.event("service",reason,true);stopObservation();RuntimeSession.stop(reason)}
+    private fun finishObservation(reason:String){val token=observationToken;SessionDiagnostics.event("service",reason,true);stopObservation();if(token!=null)RuntimeSession.stop(reason,token)}
     @android.annotation.TargetApi(30)
     private fun captureFrame(bounds:Rect){
         if(Build.VERSION.SDK_INT<30)return
         screenshotPending=true;requestAt=SystemClock.elapsedRealtime()
         val generation=epoch
+        val token=RuntimeSession.token() ?: run{screenshotPending=false;return}
+        val adapterAtRequest=GameBinding.training ?: run{screenshotPending=false;return}
         val ts=SystemClock.elapsedRealtimeNanos()
         try{takeScreenshot(Display.DEFAULT_DISPLAY,mainExecutor,object:TakeScreenshotCallback{
             override fun onSuccess(screenshot:ScreenshotResult){
                 val hw=screenshot.hardwareBuffer
-                if(!observing||epoch!=generation||rootInActiveWindow?.packageName?.toString()!=FreeFireLauncher.PACKAGE){hw.close();if(epoch==generation)screenshotPending=false;return}
+                if(!observing||epoch!=generation||RuntimeSession.token()!=token||rootInActiveWindow?.packageName?.toString()!=FreeFireLauncher.PACKAGE){hw.close();if(epoch==generation)screenshotPending=false;return}
                 val current=Rect();rootInActiveWindow?.getBoundsInScreen(current)
                 if(current!=bounds){hw.close();screenshotPending=false;SessionDiagnostics.event("capture","geometry_transition");return}
                 try{imageWorker.execute{
                     var source:Bitmap?=null;var full:Bitmap?=null;var crop:Bitmap?=null;var small:Bitmap?=null
+                    var handedOff=false
                     try{
                         if(!observing||epoch!=generation)return@execute
                         source=Bitmap.wrapHardwareBuffer(hw,screenshot.colorSpace)
@@ -231,15 +239,28 @@ class OmegaTouchService:AccessibilityService(){
                         val rgba=ByteBuffer.allocateDirect(w*h*4)
                         for(c in pixels){rgba.put((c shr 16).toByte());rgba.put((c shr 8).toByte());rgba.put(c.toByte());rgba.put((c ushr 24).toByte())}
                         rgba.flip()
-                        if(observing&&epoch==generation&&rootInActiveWindow?.packageName?.toString()==FreeFireLauncher.PACKAGE){
-                            val adapter=GameBinding.training?:return@execute
-                            adapter.frame(ts,sig)
-                            val accepted=RuntimeSession.submit(rgba,w,h,w*4,4,ts)
-                            SessionDiagnostics.event("capture",if(accepted)"frame_accepted" else "frame_rejected")
-                            main.post{if(epoch==generation)captureErrors=0}
+                        // Window state is read only on main, immediately before handoff.
+                        handedOff=main.post{
+                            val latest=rootInActiveWindow
+                            val latestBounds=Rect();latest?.getBoundsInScreen(latestBounds)
+                            if(!observing||epoch!=generation||RuntimeSession.token()!=token||
+                                latest?.packageName?.toString()!=FreeFireLauncher.PACKAGE||latestBounds!=bounds||GameBinding.training!==adapterAtRequest){
+                                if(epoch==generation)screenshotPending=false
+                                return@post
+                            }
+                            try{imageWorker.execute submitFrame@{
+                                try{
+                                    if(!observing||epoch!=generation||currentGeometry!=bounds||RuntimeSession.token()!=token||GameBinding.training!==adapterAtRequest)return@submitFrame
+                                    adapterAtRequest.frame(ts,sig)
+                                    val accepted=RuntimeSession.submit(rgba,w,h,w*4,4,ts,token)
+                                    if(RuntimeSession.token()==token)SessionDiagnostics.event("capture",if(accepted)"frame_accepted" else "frame_rejected")
+                                    main.post{if(epoch==generation)captureErrors=0}
+                                }catch(e:Exception){main.post{if(epoch==generation)finishObservation("screenshot_submission_error")}}
+                                finally{main.post{if(epoch==generation)screenshotPending=false}}
+                            }}catch(e:Exception){if(epoch==generation){screenshotPending=false;finishObservation("image_worker_unavailable")}}
                         }
-                    }catch(e:Exception){SessionDiagnostics.event("capture","processing_error:"+e.javaClass.simpleName,true);main.post{if(epoch==generation)finishObservation("screenshot_processing_error")}}
-                    finally{if(small!=null&&small!==crop&&small!==full)small.recycle();if(crop!=null&&crop!==full)crop.recycle();full?.recycle();source?.recycle();hw.close();main.post{if(epoch==generation)screenshotPending=false}}
+                    }catch(e:Exception){main.post{if(epoch==generation){SessionDiagnostics.failure("capture","processing_error",e,token);finishObservation("screenshot_processing_error")}}}
+                    finally{if(small!=null&&small!==crop&&small!==full)small.recycle();if(crop!=null&&crop!==full)crop.recycle();full?.recycle();source?.recycle();hw.close();if(!handedOff)main.post{if(epoch==generation)screenshotPending=false}}
                 }}catch(e:Exception){hw.close();screenshotPending=false;finishObservation("image_worker_unavailable")}
             }
             override fun onFailure(errorCode:Int){if(epoch==generation){

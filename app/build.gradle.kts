@@ -6,9 +6,10 @@ android {
         applicationId = "com.omega.ai"
         minSdk = 26
         targetSdk = 35
-        versionCode = 22
-        versionName = "1.0.12"
-        ndk { abiFilters += listOf("arm64-v8a") }
+        testInstrumentationRunner = "com.omega.ai.OmegaEmulatorTest"
+        versionCode = 28
+        versionName = "1.0.18"
+        ndk { abiFilters += listOf(if (project.findProperty("omegaEmulator") == "true") "x86_64" else "arm64-v8a") }
     }
     androidResources { noCompress += listOf("tflite","onnx") }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }

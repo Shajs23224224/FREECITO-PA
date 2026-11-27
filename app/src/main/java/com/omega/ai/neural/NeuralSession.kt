@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
 /** Perception and symbolic coordination; optional owner-authorized command port. Untrained embeddings do not dispatch commands. */
-class NeuralSession(context:Context,scope:String?,sessionId:String,port:GamePort?=null) : AutoCloseable {
+class NeuralSession(context:Context,scope:String?,private val sessionId:String,port:GamePort?=null) : AutoCloseable {
     private val learner=scope?.takeIf{port!=null && port.scope==it}?.let{game->
         val hash=MessageDigest.getInstance("SHA-256").digest(game.toByteArray(Charsets.UTF_8)).joinToString(""){ "%02x".format(it.toInt() and 255) }
         ContinuousPolicy(game,File(context.filesDir,"learning/rank17-gated-v1/$hash.bin"))
@@ -40,10 +40,11 @@ class NeuralSession(context:Context,scope:String?,sessionId:String,port:GamePort
     private val worker=Executors.newSingleThreadExecutor()
     private val closed=AtomicBoolean(false)
     private val busy=AtomicBoolean(false)
+    private val cleanupFailed=AtomicBoolean(false)
     private val message=AtomicReference("858 módulos · 3.111.624 parámetros · 160 roles")
     private var last=-1L
     private var seen=-1L
-    private val metrics=CycleMetrics()
+    private val metrics=CycleMetrics(clockNs = SystemClock::elapsedRealtimeNanos)
     @Volatile private var budget=MetaGovernor.budget(Load.NORMAL)
     fun performance()=metrics.snapshot()
     fun configureBudget(value:Budget){
@@ -56,6 +57,7 @@ class NeuralSession(context:Context,scope:String?,sessionId:String,port:GamePort
         val now=SystemClock.elapsedRealtimeNanos()
         val frame=listOfNotNull(s.tracks?.frameNs,s.text?.frameNs,s.relativeDepth?.frameNs,s.hud?.frameNs).maxOrNull() ?: return
         if(frame<=seen || (last>=0 && now-last<budget.cognitiveIntervalNs) || !busy.compareAndSet(false,true))return
+        try {
         last=now; seen=frame
         val x=FloatArray(2048)
         val domains=mutableListOf<Int>()
@@ -199,10 +201,21 @@ class NeuralSession(context:Context,scope:String?,sessionId:String,port:GamePort
                     if(!closed.get())message.set("Blackboard: ${p.proposals.size} roles · ${p.activeModules.size} módulos · ${p.selected.size} evidencias · $places firmas espaciales · plan: ${selected?.id?:"none"} · ejecutivo: ${tick?.status?:"sin adaptador"} · ${learner?.stats()?:"aprendizaje inactivo"} · carga: ${budget.load}")
                     success=true
                 }
-            } catch(e:Exception){if(!closed.get()){message.set("Inferencia no disponible");SessionDiagnostics.event("neural","error:"+e.javaClass.simpleName,true)}}
+            } catch(e:Exception){if(!closed.get()){message.set("Inferencia no disponible");SessionDiagnostics.failure("neural","inference_error",e,sessionId)}}
             finally {metrics.record((SystemClock.elapsedRealtimeNanos()-started).coerceAtLeast(0),success);busy.set(false)}
         }
+        } catch(e:Throwable){busy.set(false);throw e}
     }
     fun status()=message.get()
-    @Synchronized override fun close(){ if(closed.compareAndSet(false,true)){executive?.close();worker.execute{store?.close()};worker.shutdown()} }
+    fun terminated()=worker.isTerminated && !cleanupFailed.get()
+    @Synchronized override fun close(){
+        if(!closed.compareAndSet(false,true))return
+        try {
+            worker.execute {
+                try { executive?.close() } catch(e:Throwable){ cleanupFailed.set(true);SessionDiagnostics.failure("neural","cleanup_error",e,sessionId) }
+                try { store?.close() } catch(e:Throwable){ cleanupFailed.set(true);SessionDiagnostics.failure("neural","cleanup_error",e,sessionId) }
+            }
+        } catch(e:java.util.concurrent.RejectedExecutionException){cleanupFailed.set(true)}
+        finally {worker.shutdown()}
+    }
 }

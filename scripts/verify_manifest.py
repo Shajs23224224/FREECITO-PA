@@ -14,13 +14,17 @@ r=x['reasoning']; assert r['max_plans']==16 and r['max_steps']==8 and not r['tra
 e=x['executive']; assert e['max_in_flight']==1 and not e['real_money'] and not e['actual_game_execution']
 l=x['learning']; assert l['head_parameters']==88 and l['eligible_parameters']==72 and l['actual_game_experiences']==0 and not l['training_separate']
 m=x['meta']; assert m['role_budgets']==[4,2,1,0] and m['resource_stop_latched'] and m['latency_window']==32
-v=x['release']; assert x['version']=='1.0.12' and v['scope_and_freshness_gate'] and not v['gameplay_validated'] and not v['physical_device_validated']
+assert m['resource_states']==['NORMAL','ECONOMY','LIMITED','RECOVERY','STOP'] and m['latency_max_age_ms']==30000 and m['recovery_budget']=='LIMITED' and m['explicit_resource_causes']
+assert m['resource_telemetry']['pss_interval_ms']==10000 and m['resource_telemetry']['system_memory_threshold_guard'] and not m['resource_telemetry']['physical_profile_validated']
+v=x['release']; assert x['version']=='1.0.18' and v['scope_and_freshness_gate'] and not v['gameplay_validated'] and not v['physical_device_validated']
 a=x['accessibility']; assert a['configured'] and a['public_client_enabled'] and a['training_marker_required'] and a['max_pending']==1 and not a['delivery_is_reward']
 assert not x['tactical']['live_adapter'] and x['tactical']['actual_game_experiences']==0
 assert n['unique_parameters']+l['head_parameters']==3111624
 assert n['independent_adapter_parameters']==1997424 and n['shared_weights']==1114112
 assert not x['training_live']['manual_calibration'] and x['training_live']['automatic_actions']==['move','sprint','jump','crouch','prone','heal']
-assert x['diagnostics']['persistent_trace'] and x['diagnostics']['max_entries']==100 and not x['diagnostics']['stores_screenshots']
+assert x['diagnostics']['persistent_trace'] and x['diagnostics']['max_entries']==120 and x['diagnostics']['max_scopes']==5 and x['diagnostics']['schema']==2 and not x['diagnostics']['stores_screenshots']
 assert x['vision']['yolo']['input_shape']==[1,3,416,416] and x['vision']['yolo']['output_shape']==[1,3549,85]
 assert x['vision']['yolo']['class_count']==80 and not x['vision']['yolo']['game_specific_training']
 print('PASS: architecture manifest, counts, non-overlapping domain ranges, no false implementation claims')
+
+assert x["vision"]["observation_health"]["exact_frame_groups_diagnostic_only"] and not x["vision"]["observation_health"]["model_accuracy_validated"]

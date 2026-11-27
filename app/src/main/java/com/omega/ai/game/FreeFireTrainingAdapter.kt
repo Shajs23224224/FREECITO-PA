@@ -81,7 +81,7 @@ internal class FreeFireTrainingAdapter:AuthorizedGameAdapter,GamePort{
             val marker=if(fresh)TrainingObservation.automaticMarker(lines)?:TrainingObservation.contextualMarker(lines) else null
             health=if(fresh)TrainingObservation.health(lines) else null
             medkits=if(fresh)icons[HudIcon.HEAL]?.let{TrainingObservation.medkits(lines,it.x,it.y,it.radiusX,it.radiusY)} else null
-            SessionDiagnostics.event("ocr_check","zone="+(marker?: "none")+" hp_known="+(health!=null)+" kits="+(medkits?.toString()?:"unknown"))
+            SessionDiagnostics.event("ocr_check","zone_confirmed="+(marker!=null)+" hp_known="+(health!=null)+" kits="+(medkits?.toString()?:"unknown"))
             if(marker==null){consecutive=0;lastMarker=null;verifiedAt=-1;state=null;TouchBridge.disarm()}
             else{
                 consecutive=if(marker==lastMarker&&prev>=0&&t.frameNs-prev<=4_000_000_000L)(consecutive+1).coerceAtMost(2) else 1

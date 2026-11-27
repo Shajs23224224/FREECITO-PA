@@ -28,7 +28,7 @@ fun main(){
  check(ex.tick(true).goal=="EXCHANGE_VIRTUAL")
  val guard=ContinuousPolicy("unit:test",File(dir,"guard"));repeat(8){guard.confirmed(Experience("pos$it","unit:test",Family.COLLECT,signal,1f))};val anchored=guard.weights();guard.confirmed(Experience("neg","unit:test",Family.COLLECT,signal,-1f));check(anchored.contentEquals(guard.weights())&&guard.stats().contains("rollback=1"))
  val bad=ContinuousPolicy("other",f);check(bad.stats().contains("disabled=true"));bad.confirmed(good.copy(scope="other",commandId="three"));check(last.contentEquals(ContinuousPolicy("unit:test",f).weights()))
- f.appendBytes(byteArrayOf(1));val corrupt=ContinuousPolicy("unit:test",f);check(corrupt.stats().contains("disabled=true")&&corrupt.adjustment(Family.COLLECT,x)==0f)
+ f.appendBytes(byteArrayOf(1));val corrupt=ContinuousPolicy("unit:test",f);check(corrupt.health().checkpointStatus==CheckpointStatus.RECOVERED && !corrupt.health().disabled && first.contentEquals(corrupt.weights()))
  val blocked=File(dir,"not-dir");blocked.writeText("x");val failure=ContinuousPolicy("unit:test",File(blocked,"checkpoint"));failure.confirmed(good);check(failure.weights().all{it==0f}&&failure.stats().contains("disabled=true"))
  println("PASS: online reward update, family isolation, deduplication, checkpoint reopen, confirmed executive receipt, scope and checksum rejection, rollback on write failure, late receipt rejection, learned offer ranking, replay guard")
  }finally{dir.deleteRecursively()}

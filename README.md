@@ -1,3 +1,15 @@
+# OMEGA v1.0.18 — fase correctiva 6
+
+Consulta [informe de fase 6](docs/CORRECCIONES-FASE-06-v1.0.18.md). Compilación Android pendiente.
+
+# OMEGA v1.0.17 — fase correctiva 5
+
+Consulta [informe de fase 5](docs/CORRECCIONES-FASE-05-v1.0.17.md). La revisión local no ha sido compilada para Android.
+
+# OMEGA v1.0.15 — fase correctiva 3
+
+Consulta [informe de fase 3](docs/CORRECCIONES-FASE-03-v1.0.15.md), [fase 2](docs/CORRECCIONES-FASE-02-v1.0.14.md) y [fase 1](docs/CORRECCIONES-FASE-01-v1.0.13.md). La revisión local no ha sido compilada para Android. El texto que sigue es histórico.
+
 # OMEGA v1.0.4 — núcleo integrado (candidato técnico)
 
 Infraestructura Android y núcleo nativo para la futura IA agéntica de videojuegos Shooter 3D autorizados. Incluye adaptadores de modelos perceptivos preentrenados y un núcleo factorizado no entrenado. No hay política de juego entrenada ni adaptador real conectado. El código nativo y JNI se han probado en Linux; la compilación y las pruebas de Android requieren verificación.

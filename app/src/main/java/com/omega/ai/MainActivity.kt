@@ -54,18 +54,38 @@ class MainActivity : Activity() {
             minHeight=dp(48);isClickable=true;isFocusable=true;setOnClickListener{showAccessSettings()}
         }
         root.addView(accessLink,LinearLayout.LayoutParams(-1,-2))
-        root.addView(label("v1.0.12 · Control flotante",12f,Color.LTGRAY).apply { setPadding(0,dp(16),0,0) })
-        root.addView(Button(this).apply{text="Ver diagnóstico de última sesión";isAllCaps=false;setOnClickListener{showDiagnostic()}})
+        root.addView(label("v1.0.18 · Control flotante",12f,Color.LTGRAY).apply { setPadding(0,dp(16),0,0) })
+        root.addView(Button(this).apply{text="Ver diagnóstico e historial";isAllCaps=false;setOnClickListener{showDiagnostic()}})
         val scroll=android.widget.ScrollView(this).apply{isFillViewport=true;addView(root)}
         setContentView(scroll); render()
     }
     private fun showDiagnostic(){
-        val report=SessionDiagnostics.report()
-        AlertDialog.Builder(this).setTitle("Diagnóstico OMEGA").setMessage(report)
-            .setPositiveButton("Cerrar",null).setNeutralButton("Copiar"){_,_->
+        val report=SessionDiagnostics.report(40)
+        val warning=if(SessionDiagnostics.hasPersistenceError())"Error al guardar el historial privado.\n\n" else ""
+        AlertDialog.Builder(this).setTitle("Diagnóstico OMEGA · últimos 40 eventos")
+            .setMessage(warning+report.ifEmpty{"Sin sesiones registradas"})
+            .setPositiveButton("Cerrar",null).setNeutralButton("Copiar vista"){_,_->
                 val clipboard=getSystemService(android.content.ClipboardManager::class.java)
                 clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("OMEGA diagnóstico",report))
+            }.setNegativeButton("Exportar historial"){_,_->
+                try { startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE);type="application/x-ndjson"
+                    putExtra(Intent.EXTRA_TITLE,"omega-diagnostico.jsonl")
+                },902) } catch(e:Exception){
+                    SessionDiagnostics.failure("diagnostics","export_picker_failed",e)
+                    android.widget.Toast.makeText(this,"No se pudo abrir el selector de archivos",android.widget.Toast.LENGTH_SHORT).show()
+                }
             }.show()
+    }
+    private fun exportDiagnostic(uri:android.net.Uri){
+        val resolver=applicationContext.contentResolver
+        Thread({
+            val ok=runCatching {
+                val report=SessionDiagnostics.report()
+                requireNotNull(resolver.openOutputStream(uri,"wt")).bufferedWriter(Charsets.UTF_8).use{it.write(report);if(report.isNotEmpty())it.newLine()}
+            }.onFailure{SessionDiagnostics.failure("diagnostics","export_failed",it)}.isSuccess
+            handler.post{if(!isDestroyed)android.widget.Toast.makeText(this,if(ok)"Diagnóstico exportado" else "No se pudo exportar el diagnóstico",android.widget.Toast.LENGTH_SHORT).show()}
+        },"omega-diagnostic-export").start()
     }
     private fun dp(v: Int) = (v*resources.displayMetrics.density+0.5f).toInt()
     private fun label(t:String,s:Float,c:Int) = TextView(this).apply { text=t; textSize=s; setTextColor(c); gravity=Gravity.CENTER }
@@ -99,7 +119,7 @@ class MainActivity : Activity() {
         }
         s.neuralStatus?.let { status.append("\n$it") }
         s.resources?.let { status.append("\n$it") }
-        if(!s.active && GameBinding.connection()==Connection.UNCONFIGURED){
+        if(!s.active && RuntimeSession.canStart() && GameBinding.connection()==Connection.UNCONFIGURED){
             status.text=launchMessage ?: if(!FreeFireLauncher.available(this)) "Free Fire no encontrado" else if(s.message.startsWith("Sistema detenido"))s.message else "HUD automático · entra al entrenamiento autorizado"
             button.text="INICIAR IA"
         }else button.text=if(s.active) "DETENER IA" else "INICIAR IA"
@@ -109,16 +129,18 @@ class MainActivity : Activity() {
         val armed=TouchBridge.isArmed()
         accessStatus.text=when(enabled){true->"Accesibilidad: habilitada";false->"Accesibilidad: deshabilitada";null->"Accesibilidad: estado desconocido"}+" · "+(if(connected)"servicio conectado" else "servicio desconectado")+"\n"+(if(armed)"Transporte de prueba activo" else "Gestos inactivos")
         accessLink.text=if(enabled==true)"Administrar accesibilidad" else "Configurar accesibilidad"
-        button.isEnabled=!awaitingConsent
+        button.isEnabled=!awaitingConsent&&(s.active||RuntimeSession.canStart())
     }
     private fun toggle(){
         if(RuntimeSession.status().active){RuntimeSession.stop("user_stop");render();return}
+        if(!RuntimeSession.canStart()){render();return}
         if(Build.VERSION.SDK_INT<30){launchMessage="La captura local requiere Android 11 o superior";render();return}
         if(accessibilityEnabled()!=true||!TouchBridge.connected()){showAccessSettings();return}
         if(!FreeFireLauncher.available(this)){launchMessage="Free Fire no encontrado";render();return}
         AlertDialog.Builder(this).setTitle("Iniciar sesión de entrenamiento")
             .setMessage("Entra manualmente en el campo de entrenamiento autorizado. OMEGA reconoce automáticamente la zona y busca controles en la pantalla. No necesitas marcar puntos ni seleccionar una captura. No inicia partidas ni compra objetos. Usa el menú flotante Iniciar/Pausar o regresa a esta aplicación para detener la sesión. La detección experimental puede fallar.")
             .setNegativeButton("Cancelar",null).setPositiveButton("Iniciar"){_,_->
+                if(!RuntimeSession.canStart()){render();return@setPositiveButton}
                 GameBinding.beginTraining()
                 if(RuntimeSession.start()&&FreeFireLauncher.open(this)&&TouchBridge.startObservation()){launchMessage=null}
                 else{RuntimeSession.stop("start_failed");GameBinding.endTraining();launchMessage="No se pudo iniciar la sesión"}
@@ -128,6 +150,7 @@ class MainActivity : Activity() {
     @Deprecated("Activity result used without external AndroidX dependency")
     override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?) {
         super.onActivityResult(requestCode,resultCode,data)
+        if(requestCode==902){if(resultCode==RESULT_OK)data?.data?.let{exportDiagnostic(it)};return}
         if(requestCode!=901)return
         awaitingConsent=false
         if(resultCode!=RESULT_OK || data==null || GameBinding.adapter==null || !RuntimeSession.status().active) { RuntimeSession.stop("consent_denied"); render(); return }
