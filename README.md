@@ -95,3 +95,7 @@ Rango 17, ocho compuertas residuales independientes por módulo, 3.111.536 pará
 ## Diagnóstico de accesibilidad v1.0.5
 
 Enlace opcional a Ajustes con explicación de permisos y estados habilitado/conectado/armado separados. Sin adaptador, los gestos permanecen inactivos. Véase `docs/ACCESSIBILITY-UI.md`.
+
+## Entrenamiento real experimental v1.0.6
+
+Adaptador Free Fire con calibración visual de una captura elegida por el usuario, dos lecturas OCR de etiqueta exclusiva, captura local Android 11+ y gestos de movimiento/cámara. No está validado en un teléfono ni completa combate. Consulte `docs/TRAINING-LIVE.md`.

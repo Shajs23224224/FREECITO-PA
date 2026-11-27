@@ -1,4 +1,4 @@
 <resources>
     <string name="omega_touch_label">OMEGA — Control experimental</string>
-    <string name="omega_touch_description">Servicio de gestos para un entorno de prueba autorizado y privado. Comprueba el paquete activo sin conservar textos. Inactivo sin adaptador de prueba. Puede desactivarse en Ajustes.</string>
+    <string name="omega_touch_description">Captura local y gestos experimentales en entrenamiento de Free Fire, con calibración y sesión explícita. No guarda imágenes. Puedes desactivarlo en Ajustes.</string>
 </resources>

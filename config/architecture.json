@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "1.0.5",
+  "version": "1.0.6",
   "status": "compressed_modules_executable_untrained",
   "main": 824,
   "intermediate": 32,
@@ -291,36 +291,37 @@
     "energy": "battery percentage/temperature and power saver only; no watts or joules"
   },
   "release": {
-    "classification": "integrated core technical candidate; no playable game adapter",
+    "classification": "experimental real-screen movement/camera candidate",
     "signature": "debug only; CI verifies",
     "abi": "arm64-v8a",
     "minimum_android_api": 26,
     "gameplay_validated": false,
     "physical_device_validated": false,
     "source_archive": "git archive",
-    "game_adapter": "unconfigured",
+    "game_adapter": "experimental training adapter, no device validation",
     "actual_game_experiences": 0,
     "scope_and_freshness_gate": true
   },
   "free_fire": {
     "package": "com.dts.freefireth",
     "launch": "Android public launcher intent",
-    "command_adapter": "unconfigured",
-    "capture_enabled": false,
+    "command_adapter": "experimental calibrated training movement and camera",
+    "capture_enabled": true,
     "gameplay_validated": false
   },
   "accessibility": {
     "transport": "Android AccessibilityService dispatchGesture",
-    "target": "explicit private test adapter only",
-    "public_client_enabled": false,
-    "configured": false,
+    "target": "official Free Fire client, user-attested training with calibrated exact OCR marker",
+    "public_client_enabled": true,
+    "configured": true,
     "gesture_max_ms": 500,
     "ttl_ms": 500,
     "max_pending": 1,
     "delivery_is_reward": false,
     "settings_link": true,
     "enabled_connected_armed_diagnostics": true,
-    "optional_without_adapter": true
+    "optional_without_adapter": false,
+    "training_marker_required": true
   },
   "tactical": {
     "state": "authorized virtual training port; observed health, ammunition, threat, cover, healing items and hit counter",
@@ -338,5 +339,17 @@
     "percent": 50.006363506639254,
     "fp32_weight_bytes": 12446496,
     "pretrained_vision_excluded": true
+  },
+  "training_live": {
+    "minimum_api": 30,
+    "calibrated_actions": [
+      "move",
+      "camera"
+    ],
+    "combat_controls_verified": false,
+    "marker_required": true,
+    "training_verified_on_device": false,
+    "receipt": "gesture delivery plus subsequent visual change proxy, not causal proof",
+    "real_experiences_verified": 0
   }
 }
