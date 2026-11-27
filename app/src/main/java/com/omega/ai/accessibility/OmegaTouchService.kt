@@ -8,6 +8,8 @@ import android.os.Build
 import android.view.Display
 import java.nio.ByteBuffer
 import com.omega.ai.RuntimeSession
+import com.omega.ai.SessionDiagnostics
+import java.util.concurrent.Executors
 import com.omega.ai.game.FreeFireLauncher
 import kotlin.math.max
 import android.graphics.Rect
@@ -52,13 +54,17 @@ class OmegaTouchService:AccessibilityService(){
         val info=serviceInfo
         info.packageNames=arrayOf(FreeFireLauncher.PACKAGE)
         serviceInfo=info
-        TouchBridge.attach(this)
+        TouchBridge.attach(this);SessionDiagnostics.event("service","connected",true)
     }
-    private var observing=false
+    private val imageWorker=Executors.newSingleThreadExecutor()
+    @Volatile private var observing=false
     private var seenGame=false
     private var startedAt=0L
     private var screenshotPending=false
-    private var epoch=0L
+    @Volatile private var epoch=0L
+    private var missingSince=-1L
+    private var captureErrors=0
+    private var requestAt=0L
     private val poll=object:Runnable{override fun run(){
         if(!observing)return
         val adapter=GameBinding.training
@@ -66,69 +72,89 @@ class OmegaTouchService:AccessibilityService(){
         val root=rootInActiveWindow
         val target=root?.packageName?.toString()==FreeFireLauncher.PACKAGE
         val bounds=Rect();root?.getBoundsInScreen(bounds)
-        adapter.foreground(target)
-        if(!target){
+        val geometry=target&&adapter.matches(bounds.width(),bounds.height())
+        adapter.foreground(geometry)
+        if(!geometry){
             TouchBridge.disarm()
-            if(seenGame||SystemClock.elapsedRealtime()-startedAt>60_000L){finishObservation("foreground_lost");return}
+            val now=SystemClock.elapsedRealtime()
+            if(missingSince<0)missingSince=now
+            SessionDiagnostics.event("window",if(!target)"waiting_for_game_or_window" else "waiting_for_landscape")
+            if(seenGame&&now-missingSince>3500||!seenGame&&now-startedAt>60_000L){finishObservation("foreground_or_geometry_timeout");return}
         }else{
-            seenGame=true
-            if(!adapter.matches(bounds.width(),bounds.height())){finishObservation("hud_geometry_changed");return}
+            missingSince=-1;seenGame=true
+            SessionDiagnostics.event("window","game_visible ${bounds.width()}x${bounds.height()}")
             if(!RuntimeSession.status().capturing&&!RuntimeSession.beginCapture()){finishObservation("capture_init_failed");return}
             if(!RuntimeSession.resourceHealthy()){finishObservation("resource_stop");return}
+            if(screenshotPending&&SystemClock.elapsedRealtime()-requestAt>5000){finishObservation("screenshot_timeout");return}
             if(!screenshotPending)captureFrame(bounds)
         }
         main.postDelayed(this,600)
     }}
     internal fun startObservation():Boolean{
         if(Build.VERSION.SDK_INT<30||observing)return false
-        observing=true;seenGame=false;startedAt=SystemClock.elapsedRealtime();epoch++;main.post(poll);return true
+        observing=true;seenGame=false;missingSince=-1;captureErrors=0;startedAt=SystemClock.elapsedRealtime();epoch++;SessionDiagnostics.event("capture","poll_started",true);main.post(poll);return true
     }
     internal fun stopObservation(){
         observing=false;epoch++;screenshotPending=false;main.removeCallbacks(poll);TouchBridge.disarm()
     }
-    private fun finishObservation(reason:String){stopObservation();RuntimeSession.stop(reason)}
+    private fun finishObservation(reason:String){SessionDiagnostics.event("service",reason,true);stopObservation();RuntimeSession.stop(reason)}
     @android.annotation.TargetApi(30)
     private fun captureFrame(bounds:Rect){
         if(Build.VERSION.SDK_INT<30)return
-        screenshotPending=true
+        screenshotPending=true;requestAt=SystemClock.elapsedRealtime()
         val generation=epoch
         val ts=SystemClock.elapsedRealtimeNanos()
         try{takeScreenshot(Display.DEFAULT_DISPLAY,mainExecutor,object:TakeScreenshotCallback{
             override fun onSuccess(screenshot:ScreenshotResult){
                 val hw=screenshot.hardwareBuffer
-                var full:Bitmap?=null;var crop:Bitmap?=null;var small:Bitmap?=null
-                try{
-                    if(!observing||epoch!=generation||rootInActiveWindow?.packageName?.toString()!=FreeFireLauncher.PACKAGE)return
-                    val adapter=GameBinding.training?:return
-                    full=Bitmap.wrapHardwareBuffer(hw,screenshot.colorSpace)?.copy(Bitmap.Config.ARGB_8888,false)?:return
-                    val current=Rect();rootInActiveWindow?.getBoundsInScreen(current)
-                    if(current!=bounds||bounds.left<0||bounds.top<0||bounds.right>full.width||bounds.bottom>full.height||!adapter.matches(bounds.width(),bounds.height())){finishObservation("geometry_changed");return}
-                    crop=Bitmap.createBitmap(full,bounds.left,bounds.top,bounds.width(),bounds.height())
-                    val scale=minOf(1f,640f/max(crop.width,crop.height))
-                    val w=max(1,(crop.width*scale).toInt());val h=max(1,(crop.height*scale).toInt())
-                    small=Bitmap.createScaledBitmap(crop,w,h,true)
-                    val pixels=IntArray(w*h);small.getPixels(pixels,0,w,0,0,w,h)
-                    val sig=FloatArray(64){i->
-                        val x=((i%8+1)*w/10).coerceIn(0,w-1);val y=((i/8+1)*h/10).coerceIn(0,h-1)
-                        val c=pixels[y*w+x];(((c shr 16 and 255)+(c shr 8 and 255)+(c and 255))/765f)
-                    }
-                    val rgba=ByteBuffer.allocateDirect(w*h*4)
-                    for(c in pixels){rgba.put((c shr 16).toByte());rgba.put((c shr 8).toByte());rgba.put(c.toByte());rgba.put((c ushr 24).toByte())}
-                    rgba.flip();adapter.frame(ts,sig);RuntimeSession.submit(rgba,w,h,w*4,4,ts)
-                }catch(e:Exception){finishObservation("screenshot_error")}
-                finally{if(small!=null&&small!==crop&&small!==full)small.recycle();if(crop!=null&&crop!==full)crop.recycle();full?.recycle();hw.close();if(epoch==generation)screenshotPending=false}
+                if(!observing||epoch!=generation||rootInActiveWindow?.packageName?.toString()!=FreeFireLauncher.PACKAGE){hw.close();if(epoch==generation)screenshotPending=false;return}
+                val current=Rect();rootInActiveWindow?.getBoundsInScreen(current)
+                if(current!=bounds){hw.close();screenshotPending=false;SessionDiagnostics.event("capture","geometry_transition");return}
+                try{imageWorker.execute{
+                    var source:Bitmap?=null;var full:Bitmap?=null;var crop:Bitmap?=null;var small:Bitmap?=null
+                    try{
+                        if(!observing||epoch!=generation)return@execute
+                        source=Bitmap.wrapHardwareBuffer(hw,screenshot.colorSpace)
+                        full=source?.copy(Bitmap.Config.ARGB_8888,false)?:error("bitmap_unavailable")
+                        if(bounds.left<0||bounds.top<0||bounds.right>full.width||bounds.bottom>full.height)error("bounds_outside_capture")
+                        crop=Bitmap.createBitmap(full,bounds.left,bounds.top,bounds.width(),bounds.height())
+                        val scale=minOf(1f,640f/max(crop.width,crop.height))
+                        val w=max(1,(crop.width*scale).toInt());val h=max(1,(crop.height*scale).toInt())
+                        small=Bitmap.createScaledBitmap(crop,w,h,true)
+                        val pixels=IntArray(w*h);small.getPixels(pixels,0,w,0,0,w,h)
+                        val sig=FloatArray(64){i->
+                            val x=((i%8+1)*w/10).coerceIn(0,w-1);val y=((i/8+1)*h/10).coerceIn(0,h-1)
+                            val c=pixels[y*w+x];(((c shr 16 and 255)+(c shr 8 and 255)+(c and 255))/765f)
+                        }
+                        val rgba=ByteBuffer.allocateDirect(w*h*4)
+                        for(c in pixels){rgba.put((c shr 16).toByte());rgba.put((c shr 8).toByte());rgba.put(c.toByte());rgba.put((c ushr 24).toByte())}
+                        rgba.flip()
+                        if(observing&&epoch==generation&&rootInActiveWindow?.packageName?.toString()==FreeFireLauncher.PACKAGE){
+                            val adapter=GameBinding.training?:return@execute
+                            adapter.frame(ts,sig)
+                            val accepted=RuntimeSession.submit(rgba,w,h,w*4,4,ts)
+                            SessionDiagnostics.event("capture",if(accepted)"frame_accepted" else "frame_rejected")
+                            main.post{if(epoch==generation)captureErrors=0}
+                        }
+                    }catch(e:Exception){SessionDiagnostics.event("capture","processing_error:"+e.javaClass.simpleName,true);main.post{if(epoch==generation)finishObservation("screenshot_processing_error")}}
+                    finally{if(small!=null&&small!==crop&&small!==full)small.recycle();if(crop!=null&&crop!==full)crop.recycle();full?.recycle();source?.recycle();hw.close();main.post{if(epoch==generation)screenshotPending=false}}
+                }}catch(e:Exception){hw.close();screenshotPending=false;finishObservation("image_worker_unavailable")}
             }
-            override fun onFailure(errorCode:Int){if(epoch==generation){screenshotPending=false;finishObservation("screenshot_unavailable:"+errorCode)}}
-        })}catch(e:Exception){screenshotPending=false;finishObservation("screenshot_permission_error")}
+            override fun onFailure(errorCode:Int){if(epoch==generation){
+                screenshotPending=false;captureErrors++
+                SessionDiagnostics.event("capture","android_screenshot_error:$errorCode attempt:$captureErrors",true)
+                if(captureErrors>=3)finishObservation("screenshot_unavailable:"+errorCode)
+            }}
+        })}catch(e:Exception){screenshotPending=false;finishObservation("screenshot_permission_error:"+e.javaClass.simpleName)}
     }
     override fun onAccessibilityEvent(event:AccessibilityEvent?){ /* No event content retained. */ }
     override fun onInterrupt(){finishObservation("accessibility_interrupted")}
     override fun onUnbind(intent:Intent?):Boolean {finishObservation("accessibility_unbound");TouchBridge.detach(this);return super.onUnbind(intent)}
-    override fun onDestroy(){finishObservation("accessibility_destroyed");TouchBridge.detach(this);super.onDestroy()}
+    override fun onDestroy(){finishObservation("accessibility_destroyed");imageWorker.shutdown();TouchBridge.detach(this);super.onDestroy()}
     internal fun submit(request:TouchRequest,token:Long,onDelivery:(Boolean)->Unit):Boolean{
-        if(!busy.compareAndSet(false,true))return false
+        if(!busy.compareAndSet(false,true)){SessionDiagnostics.event("gesture","busy");return false}
         val finished=AtomicBoolean(false)
-        fun finish(ok:Boolean){if(finished.compareAndSet(false,true)){busy.set(false);runCatching{onDelivery(ok)}}}
+        fun finish(ok:Boolean){if(finished.compareAndSet(false,true)){busy.set(false);SessionDiagnostics.event("gesture",if(ok)"delivered" else "rejected_or_cancelled",true);runCatching{onDelivery(ok)}}}
         val posted=main.post{
             try{
                 val target=GameBinding.accessibilityTarget()
@@ -144,6 +170,7 @@ class OmegaTouchService:AccessibilityService(){
                 }
                 val gesture=GestureDescription.Builder().addStroke(GestureDescription.StrokeDescription(path,0,request.durationMs)).build()
                 if(!TouchBridge.allowed(token)||GameBinding.accessibilityTarget()!=target){finish(false);return@post}
+                SessionDiagnostics.event("gesture","dispatch_attempt",true)
                 if(!dispatchGesture(gesture,object:GestureResultCallback(){
                     override fun onCompleted(gestureDescription:GestureDescription){finish(TouchBridge.allowed(token))}
                     override fun onCancelled(gestureDescription:GestureDescription){finish(false)}

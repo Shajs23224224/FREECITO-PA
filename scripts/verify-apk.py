@@ -2,7 +2,7 @@ import hashlib, re, sys, zipfile
 from pathlib import Path
 apk, badging = map(Path, sys.argv[1:])
 text = badging.read_text()
-assert re.search(r"package: name='com\.omega\.ai' versionCode='17' versionName='1\.0\.7'", text), text[:300]
+assert re.search(r"package: name='com\.omega\.ai' versionCode='18' versionName='1\.0\.8'", text), text[:300]
 assert "sdkVersion:'26'" in text and "targetSdkVersion:'35'" in text
 assert "arm64-v8a" in text
 with zipfile.ZipFile(apk) as z:

@@ -1,6 +1,7 @@
 package com.omega.ai.neural
 
 import android.os.SystemClock
+import com.omega.ai.SessionDiagnostics
 import android.content.Context
 import com.omega.ai.persistence.CognitiveStore
 import com.omega.ai.game.GameBinding
@@ -179,7 +180,11 @@ class NeuralSession(context:Context,scope:String?,sessionId:String,port:GamePort
                     if(activeBudget.roles==0||closed.get())return@execute
                     val p=board.deliberate(frame,now,x,evidence,(0..15).toList(),activeBudget.roles)
                     // F01/F02 remain diagnostic embeddings. Authorization, fresh state and symbolic context gate the command.
-                    val tick=if(closed.get())null else executive?.tick(GameBinding.canCommand(budget.commands,t?.receivedNs,SystemClock.elapsedRealtimeNanos()) && selected!=null && result.facts["visual"]==Truth.TRUE && p.execution.all{it.isFinite()},p.execution)
+                    val visualTime=if(GameBinding.training!=null)s.hud?.receivedNs else t?.receivedNs
+                    val visualReady=if(GameBinding.training!=null)s.hud!=null&&s.text!=null else result.facts["visual"]==Truth.TRUE
+                    val ready=GameBinding.canCommand(budget.commands,visualTime,SystemClock.elapsedRealtimeNanos())&&selected!=null&&visualReady&&p.execution.all{it.isFinite()}
+                    val tick=if(closed.get())null else executive?.tick(ready,p.execution)
+                    SessionDiagnostics.event("executive","ready=$ready status=${tick?.status?:"no_adapter"} result=${tick?.result?.outcome?:"none"}")
                     priorTick=tick
                     if(memory!=null && tick!=null && !closed.get()){
                         val wall=System.currentTimeMillis()
@@ -194,7 +199,7 @@ class NeuralSession(context:Context,scope:String?,sessionId:String,port:GamePort
                     if(!closed.get())message.set("Blackboard: ${p.proposals.size} roles · ${p.activeModules.size} módulos · ${p.selected.size} evidencias · $places firmas espaciales · plan: ${selected?.id?:"none"} · ejecutivo: ${tick?.status?:"sin adaptador"} · ${learner?.stats()?:"aprendizaje inactivo"} · carga: ${budget.load}")
                     success=true
                 }
-            } catch(e:Exception){if(!closed.get())message.set("Inferencia no disponible")}
+            } catch(e:Exception){if(!closed.get()){message.set("Inferencia no disponible");SessionDiagnostics.event("neural","error:"+e.javaClass.simpleName,true)}}
             finally {metrics.record((SystemClock.elapsedRealtimeNanos()-started).coerceAtLeast(0),success);busy.set(false)}
         }
     }

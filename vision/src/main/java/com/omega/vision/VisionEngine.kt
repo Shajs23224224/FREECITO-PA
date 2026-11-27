@@ -57,13 +57,13 @@ class VisionEngine(context: Context) : AutoCloseable {
         fun reserve(now: Long,multiplier:Int): Boolean {
             if (!enabled || (last >= 0 && now-last < intervalNs*multiplier)) return false
             if (!busy.compareAndSet(false,true)) return false
-            last=now; return true
+            last=now; status.set("running"); return true
         }
         fun current(now: Long): TimedObservation<T>? =
             result.get()?.takeIf { now >= it.receivedNs && now-it.receivedNs <= ttlNs }
     }
     private val fast = Lane<List<Track>>(200_000_000L,1_500_000_000L)
-    private val text = Lane<List<TextLine>>(1_500_000_000L,4_000_000_000L)
+    private val text = Lane<List<TextLine>>(1_000_000_000L,4_000_000_000L)
     private val depth = Lane<List<Float>>(5_000_000_000L,15_000_000_000L)
     private val hud = Lane<HudCandidates>(900_000_000L,2_500_000_000L)
     private var lastFrame = -1L

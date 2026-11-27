@@ -41,6 +41,7 @@ object RuntimeSession {
     }
     @Synchronized fun start(): Boolean {
         if (engine != null) return false
+        SessionDiagnostics.begin()
         val session = UUID.randomUUID().toString()
         var candidate: NativeEngine? = null
         var neuralCandidate: NeuralSession? = null
@@ -56,22 +57,22 @@ object RuntimeSession {
             message = if(connection==Connection.UNCONFIGURED) "Núcleo activo · sin adaptador de juego; no juega ni aprende" else "Núcleo activo · esperando autorización de captura"
             true
         } catch (t: Throwable) {
-            neuralCandidate?.close(); candidate?.close(); message = "No se pudo iniciar el núcleo"; Log.e("OMEGA", "start", t); false
+            SessionDiagnostics.end("start_error:"+t.javaClass.simpleName);neuralCandidate?.close(); candidate?.close(); message = "No se pudo iniciar el núcleo"; Log.e("OMEGA", "start", t); false
         }
     }
     @Synchronized fun beginCapture(): Boolean {
         if (!GameBinding.canCapture() || !resourceHealthy() || engine?.observe() != true) return false
-        vision=VisionEngine(app).also{it.configureLoad(budget.visionMultiplier,budget.ocr,budget.depth)}
-        capture = true; if(budget.commands)TouchBridge.arm(); message = "Observación experimental · v1.0.7"; return true
+        vision=VisionEngine(app).also{it.configureLoad(budget.visionMultiplier,budget.ocr,budget.depth&&GameBinding.training==null)}
+        capture = true; if(budget.commands)TouchBridge.arm(); message = "Observación experimental · v1.0.8"; return true
     }
     @Synchronized fun submit(buffer: ByteBuffer, w: Int, h: Int, row: Int, pixel: Int, ts: Long): Boolean {
         if(!capture||!GameBinding.canCapture()||!resourceHealthy())return false
         val now=SystemClock.elapsedRealtimeNanos()
         if(submittedAt>=0&&now-submittedAt<100_000_000L*budget.visionMultiplier)return false
-        if(engine?.submit(buffer,w,h,row,pixel,ts)!=true)return false
+        if(engine?.submit(buffer,w,h,row,pixel,ts)!=true){SessionDiagnostics.event("native","frame_rejected");return false}
         submittedAt=now
         vision?.offer(buffer,w,h,row,pixel,ts)
-        vision?.snapshot()?.let { GameBinding.ingest(it);if(budget.commands&&GameBinding.accessibilityTarget()!=null)TouchBridge.arm();neural?.offer(it) }
+        vision?.snapshot()?.let { SessionDiagnostics.event("vision","detector=${it.detectorStatus} ocr=${it.ocrStatus} hud=${it.hudStatus} candidates=${it.hud?.value?.circles?.size?:0}");GameBinding.ingest(it);if(budget.commands&&GameBinding.accessibilityTarget()!=null)TouchBridge.arm();neural?.offer(it) }
         return true
     }
     /** Sample at most every two seconds. A critical reading is latched; the service closes projection. */
@@ -83,7 +84,8 @@ object RuntimeSession {
         val perf=neural?.performance()?:Performance(0,null,0.0)
         val reading=runCatching{requireNotNull(probe).sample()}.getOrNull()
         budget=if(reading!=null)governor.update(reading.health,perf) else governor.update(Health(.85,true,null,null,null,false,false,null),perf)
-        vision?.configureLoad(budget.visionMultiplier,budget.ocr,budget.depth)
+        vision?.configureLoad(budget.visionMultiplier,budget.ocr,budget.depth&&GameBinding.training==null)
+        SessionDiagnostics.event("budget","${budget.load} commands=${budget.commands} ocr=${budget.ocr} heap=${reading?.health?.heapRatio} lowMemory=${reading?.health?.lowMemory} thermal=${reading?.health?.thermal}")
         neural?.configureBudget(budget)
         if(!budget.commands)TouchBridge.disarm() else if(capture)TouchBridge.arm()
         resourceStatus=reading?.let{r->
@@ -97,6 +99,7 @@ object RuntimeSession {
         TouchBridge.disarm()
         TouchBridge.stopObservation()
         val e = engine ?: run{GameBinding.endTraining();return}
+        SessionDiagnostics.end(reason)
         capture = false
         neural?.close(); neural=null
         vision?.close(); vision=null

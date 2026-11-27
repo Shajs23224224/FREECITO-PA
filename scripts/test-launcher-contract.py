@@ -20,4 +20,10 @@ assert xml.get(ns+'canTakeScreenshot')=='true' and xml.get(ns+'packageNames')=='
 adapter=(java/'game/FreeFireTrainingAdapter.kt').read_text()
 assert 'TrainingObservation.automaticMarker' in adapter and 'consecutive>=2' in adapter and 'tracker.update' in adapter and 'TouchBridge.submit' in adapter
 assert not json.loads((root/'config/architecture.json').read_text())['free_fire']['gameplay_validated']
+diagnostics=(java/'SessionDiagnostics.kt').read_text()
+service_code=(java/'accessibility/OmegaTouchService.kt').read_text()
+assert 'Ver diagnóstico de última sesión' in ui and 'SessionDiagnostics.report()' in ui
+assert 'previous_process_interrupted' in diagnostics and 'entries.size>100' in diagnostics
+assert 'imageWorker.execute' in service_code and 'screenshot_timeout' in service_code and 'foreground_or_geometry_timeout' in service_code
+assert 'waiting_training_marker' in adapter and 'waiting_hud' in adapter
 print('PASS: automatic HUD training adapter, explicit session and screenshot/gesture source contract; not a device test')
