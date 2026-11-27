@@ -41,6 +41,13 @@ class MetaGovernor {
             Load.LIMITED->Budget(mode,1,3_000_000_000L,3,false,false,false,false)
             Load.STOP->Budget(mode,0,Long.MAX_VALUE,4,false,false,false,false)
         }
+        // Keep the session alive and permit bounded gestures at moderate load.
+        // Severe/critical thermal, low memory and low battery still suspend actions.
+        fun trainingBudget(base:Budget,h:Health?):Budget {
+            if(h==null||base.load.ordinal>=Load.LIMITED.ordinal)return base.copy(commands=false,learning=false,depth=false)
+            val safe=h.thermal!=null&&h.thermal<=2&&!h.lowMemory&&h.heapRatio<.83&&(h.batteryC?:47.0)<43&&(h.charging||(h.batteryPct?:0)>15)
+            return base.copy(commands=safe,learning=safe&&base.load==Load.NORMAL,depth=false)
+        }
         fun policyHealthy(updates:Long,rollbacks:Long,disabled:Boolean):Boolean {
             if(disabled||updates<0||rollbacks<0)return false
             return !(rollbacks>=4 && rollbacks.toDouble()>updates.toDouble())

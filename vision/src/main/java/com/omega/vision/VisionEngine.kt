@@ -30,7 +30,8 @@ data class VisionSnapshot(
     val text: TimedObservation<List<TextLine>>?,
     val relativeDepth: TimedObservation<List<Float>>?,
     val detectorStatus: String, val ocrStatus: String, val depthStatus: String,
-    val hud:TimedObservation<HudCandidates>?=null, val hudStatus:String="waiting"
+    val hud:TimedObservation<HudCandidates>?=null, val hudStatus:String="waiting",
+    val hudCompleted:Long=0,val hudMs:Long?=null,val hudLastCount:Int?=null,val ocrCompleted:Long=0,val ocrMs:Long?=null,val ocrLastCount:Int?=null
 )
 
 /**
@@ -46,6 +47,9 @@ class VisionEngine(context: Context) : AutoCloseable {
         val busy = AtomicBoolean(false)
         val result = AtomicReference<TimedObservation<T>?>(null)
         val status = AtomicReference("waiting_for_authorized_frame")
+        var completed=0L
+        var durationMs:Long?=null
+        var outputCount:Int?=null
         var last = -1L
         var generation=0L
         var enabled=true
@@ -57,7 +61,7 @@ class VisionEngine(context: Context) : AutoCloseable {
         fun reserve(now: Long,multiplier:Int): Boolean {
             if (!enabled || (last >= 0 && now-last < intervalNs*multiplier)) return false
             if (!busy.compareAndSet(false,true)) return false
-            last=now; status.set("running"); return true
+            last=now; return true
         }
         fun current(now: Long): TimedObservation<T>? =
             result.get()?.takeIf { now >= it.receivedNs && now-it.receivedNs <= ttlNs }
@@ -68,9 +72,9 @@ class VisionEngine(context: Context) : AutoCloseable {
     private val hud = Lane<HudCandidates>(900_000_000L,2_500_000_000L)
     private var lastFrame = -1L
     private var multiplier=1
-    @Synchronized fun configureLoad(cadenceMultiplier:Int,ocrEnabled:Boolean,depthEnabled:Boolean){
+    @Synchronized fun configureLoad(cadenceMultiplier:Int,ocrEnabled:Boolean,depthEnabled:Boolean,detectorEnabled:Boolean=true,hudEnabled:Boolean=true){
         require(cadenceMultiplier in 1..4)
-        multiplier=cadenceMultiplier;text.configure(ocrEnabled);depth.configure(depthEnabled)
+        multiplier=cadenceMultiplier;text.configure(ocrEnabled);depth.configure(depthEnabled);fast.configure(detectorEnabled);hud.configure(hudEnabled)
     }
     // Each mutable backend and the tracker belong exclusively to its lane.
     private var detector: ObjectDetector? = null
@@ -102,9 +106,13 @@ class VisionEngine(context: Context) : AutoCloseable {
         lane.executor.execute {
             try {
                 if (!closed.get()) {
+                    val started=SystemClock.elapsedRealtimeNanos()
                     val value=work()
+                    val elapsed=(SystemClock.elapsedRealtimeNanos()-started)/1_000_000L
                     synchronized(this) {
                         if (!closed.get() && lane.enabled && generation==lane.generation) {
+                            lane.completed++;lane.durationMs=elapsed
+                            lane.outputCount=when(value){is HudCandidates->value.circles.size;is List<*>->value.size;else->null}
                             lane.result.set(value?.let { TimedObservation(frameNs,received,it) })
                             lane.status.set(if(value==null) "no_valid_output" else "inference_ok")
                         }
@@ -188,7 +196,7 @@ class VisionEngine(context: Context) : AutoCloseable {
     @Synchronized fun snapshot(): VisionSnapshot {
         val now=SystemClock.elapsedRealtimeNanos()
         return VisionSnapshot(fast.current(now),text.current(now),depth.current(now),
-            fast.status.get(),text.status.get(),depth.status.get(),hud.current(now),hud.status.get())
+            fast.status.get(),text.status.get(),depth.status.get(),hud.current(now),hud.status.get(),hud.completed,hud.durationMs,hud.outputCount,text.completed,text.durationMs,text.outputCount)
     }
     @Synchronized override fun close() {
         if(!closed.compareAndSet(false,true))return

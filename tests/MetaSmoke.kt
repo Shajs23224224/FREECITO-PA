@@ -13,5 +13,12 @@ fun main(){
  check(MetaGovernor().update(clean,v).load==Load.LIMITED)
  check(!MetaGovernor.policyHealthy(2,4,false)&&!MetaGovernor.policyHealthy(8,0,true)&&MetaGovernor.policyHealthy(8,1,false))
  check(runCatching{clean.copy(heapRatio=Double.NaN)}.isFailure)
+ val moderate=clean.copy(thermal=2)
+ val mb=MetaGovernor.trainingBudget(MetaGovernor().update(moderate,p),moderate)
+ check(mb.load==Load.ECONOMY&&mb.commands&&!mb.depth&&!mb.learning)
+ val severe=clean.copy(thermal=3)
+ check(!MetaGovernor.trainingBudget(MetaGovernor().update(severe,p),severe).commands)
+ check(!MetaGovernor.trainingBudget(MetaGovernor.budget(Load.ECONOMY),null).commands)
+ check(!MetaGovernor.trainingBudget(MetaGovernor.budget(Load.ECONOMY),moderate.copy(batteryC=43.0)).commands)
  println("PASS: resource tiers, hysteresis, latched stop, CPU/thermal/battery/memory guards, rolling p95, failure rate, policy health")
 }

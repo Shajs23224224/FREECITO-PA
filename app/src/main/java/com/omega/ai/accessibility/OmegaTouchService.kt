@@ -86,9 +86,9 @@ class OmegaTouchService:AccessibilityService(){
             if(!RuntimeSession.status().capturing&&!RuntimeSession.beginCapture()){finishObservation("capture_init_failed");return}
             if(!RuntimeSession.resourceHealthy()){finishObservation("resource_stop");return}
             if(screenshotPending&&SystemClock.elapsedRealtime()-requestAt>5000){finishObservation("screenshot_timeout");return}
-            if(!screenshotPending)captureFrame(bounds)
+            if(RuntimeSession.capturePaused())SessionDiagnostics.event("capture","cooldown_session_alive") else if(!screenshotPending)captureFrame(bounds)
         }
-        main.postDelayed(this,600)
+        main.postDelayed(this,RuntimeSession.captureDelayMs())
     }}
     internal fun startObservation():Boolean{
         if(Build.VERSION.SDK_INT<30||observing)return false
