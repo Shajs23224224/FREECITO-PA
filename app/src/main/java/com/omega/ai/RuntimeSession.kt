@@ -62,7 +62,7 @@ object RuntimeSession {
     @Synchronized fun beginCapture(): Boolean {
         if (!GameBinding.canCapture() || !resourceHealthy() || engine?.observe() != true) return false
         vision=VisionEngine(app).also{it.configureLoad(budget.visionMultiplier,budget.ocr,budget.depth)}
-        capture = true; if(budget.commands)TouchBridge.arm(); message = "Observación autorizada · v1.0.5"; return true
+        capture = true; if(budget.commands)TouchBridge.arm(); message = "Observación experimental · v1.0.6"; return true
     }
     @Synchronized fun submit(buffer: ByteBuffer, w: Int, h: Int, row: Int, pixel: Int, ts: Long): Boolean {
         if(!capture||!GameBinding.canCapture()||!resourceHealthy())return false
@@ -71,7 +71,7 @@ object RuntimeSession {
         if(engine?.submit(buffer,w,h,row,pixel,ts)!=true)return false
         submittedAt=now
         vision?.offer(buffer,w,h,row,pixel,ts)
-        vision?.snapshot()?.let { neural?.offer(it) }
+        vision?.snapshot()?.let { GameBinding.ingest(it);neural?.offer(it) }
         return true
     }
     /** Sample at most every two seconds. A critical reading is latched; the service closes projection. */
@@ -95,16 +95,17 @@ object RuntimeSession {
     @Synchronized fun status() = Status(engine != null, capture, message, engine?.stats(), vision?.snapshot(), neural?.status(),resourceStatus)
     @Synchronized fun stop(reason: String) {
         TouchBridge.disarm()
-        val e = engine ?: return
+        TouchBridge.stopObservation()
+        val e = engine ?: run{GameBinding.endTraining();return}
         capture = false
         neural?.close(); neural=null
         vision?.close(); vision=null
         e.stop()
         val stats = e.stats()
         val session = id
-        e.close(); engine = null; id = null
+        e.close(); engine = null; id = null; GameBinding.endTraining()
         probe=null
-        message = if(budget.load==Load.STOP)"Sistema detenido por presión térmica/memoria" else "Sistema detenido"
+        message = if(budget.load==Load.STOP)"Sistema detenido por presión térmica/memoria" else "Sistema detenido · $reason"
         if (session != null) runCatching { store.finish(session,reason,stats) }.onFailure {
             message = "Detenido · error al guardar"; Log.e("OMEGA", "finish", it)
         }

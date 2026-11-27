@@ -12,6 +12,9 @@ import android.content.Intent
 import android.graphics.Color
 import android.media.projection.MediaProjectionManager
 import android.os.Bundle
+import android.os.Build
+import com.omega.ai.game.TrainingProfile
+import com.omega.ai.game.TrainingCalibrationActivity
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
@@ -30,6 +33,7 @@ class MainActivity : Activity() {
     private lateinit var button: Button
     private lateinit var accessStatus: TextView
     private lateinit var accessLink: TextView
+    private lateinit var calibrateLink: TextView
     private val handler = Handler(Looper.getMainLooper())
     private var awaitingConsent = false
     private var launchMessage:String?=null
@@ -49,11 +53,13 @@ class MainActivity : Activity() {
         root.addView(button,LinearLayout.LayoutParams(-1,-2))
         accessStatus=label("Accesibilidad: comprobando",14f,Color.LTGRAY).apply{setPadding(0,dp(16),0,0)}
         root.addView(accessStatus)
-        accessLink=label("Configurar accesibilidad (opcional)",15f,Color.rgb(144,217,235)).apply{
+        accessLink=label("Configurar accesibilidad",15f,Color.rgb(144,217,235)).apply{
             minHeight=dp(48);isClickable=true;isFocusable=true;setOnClickListener{showAccessSettings()}
         }
         root.addView(accessLink,LinearLayout.LayoutParams(-1,-2))
-        root.addView(label("v1.0.5 · Diagnóstico de accesibilidad",12f,Color.LTGRAY).apply { setPadding(0,dp(16),0,0) })
+        calibrateLink=label("Calibrar HUD de entrenamiento",15f,Color.rgb(144,217,235)).apply{minHeight=dp(48);isClickable=true;isFocusable=true;setOnClickListener{if(!RuntimeSession.status().active)startActivity(Intent(this@MainActivity,TrainingCalibrationActivity::class.java))}}
+        root.addView(calibrateLink,LinearLayout.LayoutParams(-1,-2))
+        root.addView(label("v1.0.6 · Control de entrenamiento experimental",12f,Color.LTGRAY).apply { setPadding(0,dp(16),0,0) })
         setContentView(root); render()
     }
     private fun dp(v: Int) = (v*resources.displayMetrics.density+0.5f).toInt()
@@ -68,7 +74,7 @@ class MainActivity : Activity() {
     }.getOrNull()
     private fun showAccessSettings(){
         AlertDialog.Builder(this).setTitle("Accesibilidad de OMEGA")
-            .setMessage("Android permite a este servicio realizar gestos y consultar ventanas cuando existe un adaptador autorizado. En esta versión no controla Free Fire ni necesita el permiso para abrirlo. La activación es opcional y solo sirve para comprobar la conexión del servicio. Puedes desactivarlo en cualquier momento en Ajustes.")
+            .setMessage("OMEGA usa capturas locales y gestos en el campo de entrenamiento calibrado de Free Fire. No guarda imágenes ni accede a otros juegos. Activa el servicio solo para las pruebas que has autorizado. Puedes detenerlo regresando a OMEGA o deshabilitarlo en Ajustes.")
             .setNegativeButton("Cancelar",null)
             .setPositiveButton("Abrir ajustes"){_,_->
                 try{startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))}
@@ -89,33 +95,35 @@ class MainActivity : Activity() {
         s.neuralStatus?.let { status.append("\n$it") }
         s.resources?.let { status.append("\n$it") }
         if(!s.active && GameBinding.connection()==Connection.UNCONFIGURED){
-            status.text=launchMessage ?: if(FreeFireLauncher.available(this)) "Free Fire disponible · apertura desde OMEGA\nControl y aprendizaje en partida no habilitados" else "Free Fire no encontrado · instala el cliente oficial"
-            button.text="ABRIR FREE FIRE"
+            val profile=TrainingProfile.load(this)
+            status.text=launchMessage ?: if(!FreeFireLauncher.available(this)) "Free Fire no encontrado" else if(profile==null)"Calibra el HUD con una captura real de entrenamiento" else "HUD calibrado · entra manualmente en entrenamiento"
+            button.text=if(profile==null)"CALIBRAR ENTRENAMIENTO" else "INICIAR IA"
+            calibrateLink.visibility=View.VISIBLE
         }else button.text=if(s.active) "DETENER IA" else "INICIAR IA"
+        GameBinding.training?.let{status.append("\n"+it.status())}
+        calibrateLink.isEnabled=!s.active
         val enabled=accessibilityEnabled()
         val connected=TouchBridge.connected()
         val armed=TouchBridge.isArmed()
         accessStatus.text=when(enabled){true->"Accesibilidad: habilitada";false->"Accesibilidad: deshabilitada";null->"Accesibilidad: estado desconocido"}+" · "+(if(connected)"servicio conectado" else "servicio desconectado")+"\n"+(if(armed)"Transporte de prueba activo" else "Gestos inactivos")
-        accessLink.text=if(enabled==true)"Administrar accesibilidad" else "Configurar accesibilidad (opcional)"
+        accessLink.text=if(enabled==true)"Administrar accesibilidad" else "Configurar accesibilidad"
         button.isEnabled=!awaitingConsent
     }
-    private fun toggle() {
-        if(!RuntimeSession.status().active && GameBinding.connection()==Connection.UNCONFIGURED){
-            launchMessage=if(FreeFireLauncher.open(this)) null else "No se pudo abrir Free Fire. Comprueba que esté instalado desde Google Play."
-            render();return
-        }
-        if(RuntimeSession.status().active) {
-            stopService(Intent(this,ProjectionService::class.java)); RuntimeSession.stop("user_stop")
-        } else if(RuntimeSession.start()) {
-            if(GameBinding.adapter != null) {
-                try {
-                    awaitingConsent=true
-                    val mgr=getSystemService(MediaProjectionManager::class.java)
-                    @Suppress("DEPRECATION") startActivityForResult(mgr.createScreenCaptureIntent(), 901)
-                } catch(e: Exception) { awaitingConsent=false; RuntimeSession.stop("consent_error") }
-            }
-        }
-        render()
+    private fun toggle(){
+        if(RuntimeSession.status().active){RuntimeSession.stop("user_stop");render();return}
+        val profile=TrainingProfile.load(this)
+        if(profile==null){startActivity(Intent(this,TrainingCalibrationActivity::class.java));return}
+        if(Build.VERSION.SDK_INT<30){launchMessage="La captura local requiere Android 11 o superior";render();return}
+        if(accessibilityEnabled()!=true||!TouchBridge.connected()){showAccessSettings();return}
+        if(!FreeFireLauncher.available(this)){launchMessage="Free Fire no encontrado";render();return}
+        AlertDialog.Builder(this).setTitle("Iniciar sesión de entrenamiento")
+            .setMessage("Entra manualmente en el campo de entrenamiento autorizado. OMEGA espera la etiqueta calibrada antes de emitir gestos. No inicia partidas ni compra objetos. Regresa a esta aplicación para detener la sesión. La detección experimental puede fallar.")
+            .setNegativeButton("Cancelar",null).setPositiveButton("Iniciar"){_,_->
+                GameBinding.beginTraining(profile)
+                if(RuntimeSession.start()&&FreeFireLauncher.open(this)&&TouchBridge.startObservation()){launchMessage=null}
+                else{RuntimeSession.stop("start_failed");GameBinding.endTraining();launchMessage="No se pudo iniciar la sesión"}
+                render()
+            }.show()
     }
     @Deprecated("Activity result used without external AndroidX dependency")
     override fun onActivityResult(requestCode:Int,resultCode:Int,data:Intent?) {
@@ -131,7 +139,7 @@ class MainActivity : Activity() {
         render()
     }
     override fun onSaveInstanceState(outState: Bundle) { outState.putBoolean("awaiting",awaitingConsent); super.onSaveInstanceState(outState) }
-    override fun onResume(){super.onResume();render()}
+    override fun onResume(){super.onResume();if(GameBinding.training!=null&&RuntimeSession.status().active)RuntimeSession.stop("returned_to_omega");render()}
     override fun onStart() { super.onStart(); handler.post(tick) }
     override fun onStop() { handler.removeCallbacks(tick); if(!isChangingConfigurations && !awaitingConsent && !RuntimeSession.status().capturing && GameBinding.adapter==null) RuntimeSession.stop("left_app"); super.onStop() }
 }

@@ -8,7 +8,7 @@ data class Resource(val id:String,val count:Int,val desired:Int) {
 data class Offer(val id:String,val family:Family,val resource:String?=null,val costResource:String?=null,val cost:Int=0,val virtualOnly:Boolean=false) {
     init { require(id.length in 1..80 && cost in 0..1000000 && (resource==null||resource.length in 1..64) && (costResource==null||costResource.length in 1..64)) }
 }
-data class Receipt(val commandId:String,val outcome:Outcome)
+data class Receipt(val commandId:String,val outcome:Outcome,val rewardOverride:Float?=null){init{require(rewardOverride==null||rewardOverride.isFinite()&&rewardOverride in -1f..1f)}}
 data class GameState(val scope:String,val sequence:Long,val observedNs:Long,val resources:List<Resource>,val offers:List<Offer>,val receipt:Receipt?=null,val combat:CombatContext?=null) {
     init { require(scope.length in 1..200 && sequence>=0 && observedNs>=0 && resources.size<=64 && offers.size<=32 && resources.map{it.id}.distinct().size==resources.size && offers.map{it.id}.distinct().size==offers.size) }
 }
@@ -76,7 +76,7 @@ class Executive(private val port:GamePort,private val session:String,private val
                 if(outcome==Outcome.UNKNOWN)halt()
                 else if(permissionGate() && port.authorized() && port.scope==scope){
                     visits[old.offer.family]=(visits[old.offer.family]?:0).coerceAtMost(1_000_000)+1
-                    val reward=if(outcome==Outcome.FAILURE)-1f else if(old.offer.family==Family.EXCHANGE_VIRTUAL).9f else 1f
+                    val reward=if(outcome==Outcome.FAILURE)-1f else receipt.rewardOverride?:if(old.offer.family==Family.EXCHANGE_VIRTUAL).9f else 1f
                     policy?.confirmed(Experience(old.cmd.id,scope,old.offer.family,old.features,reward))
                 }else halt()
                 return Tick("result",offered=state.offers.size,missing=deficits,result=Result(old.cmd,old.offer.family,outcome,if(outcome==Outcome.UNKNOWN&&!verified)"unverified_delta" else "adapter_receipt"))

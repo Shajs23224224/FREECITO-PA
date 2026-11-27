@@ -1,6 +1,7 @@
 package com.omega.ai.game
 
 import android.app.Activity
+import com.omega.vision.VisionSnapshot
 import com.omega.core.executive.GamePort
 import com.omega.core.release.Connection
 import com.omega.core.release.SessionGate
@@ -20,8 +21,12 @@ interface AuthorizedGameAdapter {
     fun captureScopeConfirmed(): Boolean
 }
 object GameBinding {
-    // No game or authorization was supplied. Deliberately fail closed; a concrete authorized title and API are required.
-    val adapter: AuthorizedGameAdapter? = null
+    @Volatile internal var training:FreeFireTrainingAdapter?=null
+        private set
+    val adapter:AuthorizedGameAdapter? get()=training
+    internal fun beginTraining(profile:TrainingProfile){training?.stop();training=FreeFireTrainingAdapter(profile)}
+    internal fun endTraining(){training?.stop();training=null}
+    internal fun ingest(snapshot:VisionSnapshot){training?.ingest(snapshot)}
     fun connection():Connection = runCatching {
         val a=adapter
         SessionGate.connection(a?.memoryScope,a?.commandPort?.scope)
@@ -31,9 +36,9 @@ object GameBinding {
     }.getOrDefault(false)
     fun accessibilityTarget():String? = runCatching {
         val a=adapter ?: return null
-        a.accessibilityTestPackage?.takeIf{it.isNotBlank() && it!=FreeFireLauncher.PACKAGE && a.accessibilityTestScopeConfirmed() && canCapture()}
+        a.accessibilityTestPackage?.takeIf{it.isNotBlank() && a.accessibilityTestScopeConfirmed() && canCapture()}
     }.getOrNull()
     fun canCommand(enabled:Boolean,visualNs:Long?,nowNs:Long):Boolean = runCatching {
-        SessionGate.commandAllowed(connection(),adapter?.captureScopeConfirmed()==true,enabled,visualNs,nowNs)
+        SessionGate.commandAllowed(connection(),adapter?.accessibilityTestScopeConfirmed()==true,enabled,visualNs,nowNs)
     }.getOrDefault(false)
 }

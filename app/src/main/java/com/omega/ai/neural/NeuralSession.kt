@@ -26,7 +26,7 @@ class NeuralSession(context:Context,scope:String?,sessionId:String,port:GamePort
         val hash=MessageDigest.getInstance("SHA-256").digest(game.toByteArray(Charsets.UTF_8)).joinToString(""){ "%02x".format(it.toInt() and 255) }
         ContinuousPolicy(game,File(context.filesDir,"learning/rank17-gated-v1/$hash.bin"))
     }
-    private val executive=port?.takeIf{scope!=null && it.scope==scope}?.let{Executive(it,sessionId,{SystemClock.elapsedRealtimeNanos()},policy=learner,permissionGate={GameBinding.canCapture()&&!closed.get()})}
+    private val executive=port?.takeIf{scope!=null && it.scope==scope}?.let{Executive(it,sessionId,{SystemClock.elapsedRealtimeNanos()},ttl=5_000_000_000L,policy=learner,permissionGate={GameBinding.canCapture()&&!closed.get()})}
     private val store=scope?.let{CognitiveStore(context)}
     private val memory=store?.let{CognitiveMemory(requireNotNull(scope),it)}
     private val world=memory?.let{WorldModel(it,sessionId)}
