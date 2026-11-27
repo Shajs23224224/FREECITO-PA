@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "1.0.10",
+  "version": "1.0.11",
   "status": "compressed_modules_executable_untrained",
   "main": 824,
   "intermediate": 32,
@@ -130,14 +130,41 @@
   "separate_trainer": false,
   "vision": {
     "module": "vision",
-    "detector": "EfficientDet-Lite0 general-domain",
+    "detector": "YOLOX-Nano general-domain, EfficientDet-Lite0 fallback",
     "ocr": "ML Kit Latin bundled",
     "depth": "Depth Anything V2 Small ONNX quantized",
     "tracking": "visible IoU association",
     "model_execution": "Android not yet verified",
     "game_adapter": "unconfigured",
     "auxiliary_models_not_counted_in_858": true,
-    "hud": "experimental template matcher, not a trained game-specific neural detector"
+    "hud": "experimental template matcher, not a trained game-specific neural detector",
+    "yolo": {
+      "model": "YOLOX-Nano",
+      "release": "0.1.1rc0",
+      "license": "Apache-2.0",
+      "sha256": "c789161ed43c8269fcd4e67c67eeeb4e80c622da2eb296a20bc6007bd18a0b7d",
+      "parameters_approx": 910000,
+      "class_count": 80,
+      "input_shape": [
+        1,
+        3,
+        416,
+        416
+      ],
+      "output_shape": [
+        1,
+        3549,
+        85
+      ],
+      "preprocessing": "BGR float 0..255 top-left letterbox 114",
+      "nms": "class-aware 0.45 IoU",
+      "score_threshold": 0.35,
+      "worker": "single bounded detector lane, CPU one intra-op thread",
+      "minimum_interval_ms": 1500,
+      "game_specific_training": false,
+      "physical_device_validation": false,
+      "action_authority": false
+    }
   },
   "implemented_dense_independent_networks": 0,
   "trained_networks": 0,
@@ -294,7 +321,7 @@
     "training_severe": "pause work while retaining session, recover with hysteresis"
   },
   "release": {
-    "classification": "experimental multi-icon movement and healing integration; no device validation",
+    "classification": "pretrained YOLOX visual integration, no device/gameplay validation",
     "signature": "debug only; CI verifies",
     "abi": "arm64-v8a",
     "minimum_android_api": 26,

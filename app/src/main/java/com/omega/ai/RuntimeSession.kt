@@ -71,7 +71,7 @@ object RuntimeSession {
     @Synchronized fun beginCapture(): Boolean {
         if (!GameBinding.canCapture() || !resourceHealthy() || engine?.observe() != true) return false
         vision=VisionEngine(app);configureVision()
-        capture = true; if(budget.commands)TouchBridge.arm(); message = "Observación experimental · v1.0.10"; return true
+        capture = true; if(budget.commands)TouchBridge.arm(); message = "Observación experimental · v1.0.11"; return true
     }
     @Synchronized fun submit(buffer: ByteBuffer, w: Int, h: Int, row: Int, pixel: Int, ts: Long): Boolean {
         if(!capture||!GameBinding.canCapture()||!resourceHealthy()||capturePaused())return false
@@ -81,6 +81,7 @@ object RuntimeSession {
         submittedAt=now
         vision?.offer(buffer,w,h,row,pixel,ts)
         vision?.snapshot()?.let {
+            SessionDiagnostics.event("detector","backend=${it.detectorBackend} status=${it.detectorStatus} done=${it.detectorCompleted} ms=${it.detectorMs} count=${it.detectorLastCount}")
             SessionDiagnostics.event("vision","ocr=${it.ocrStatus} done=${it.ocrCompleted} ms=${it.ocrMs} lines=${it.ocrLastCount} hud=${it.hudStatus} done=${it.hudCompleted} ms=${it.hudMs} candidates=${it.hudLastCount} fresh=${it.hud!=null}")
             GameBinding.ingest(it)
             val ready=GameBinding.accessibilityTarget()!=null
