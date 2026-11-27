@@ -15,4 +15,10 @@ assert 'FreeFireLauncher.open(this)' in ui and 'ABRIR FREE FIRE' in ui
 assert 'val adapter: AuthorizedGameAdapter? = null' in (base/'java/com/omega/ai/game/GameBinding.kt').read_text()
 config=json.loads((root/'config/architecture.json').read_text())
 assert not config['free_fire']['capture_enabled'] and not config['free_fire']['gameplay_validated']
+service=next(s for s in manifest.findall('application/service') if s.get(ns+'name')=='.accessibility.OmegaTouchService')
+assert service.get(ns+'permission')=='android.permission.BIND_ACCESSIBILITY_SERVICE'
+assert 'Settings.ACTION_ACCESSIBILITY_SETTINGS' in ui
+assert 'getEnabledAccessibilityServiceList' in ui and 'TouchBridge.connected()' in ui and 'TouchBridge.isArmed()' in ui
+assert 'Configurar accesibilidad (opcional)' in ui
+assert config['accessibility']['settings_link'] and not config['accessibility']['public_client_enabled']
 print('PASS: Free Fire launch-only source contract, narrow package visibility, adapter disabled')

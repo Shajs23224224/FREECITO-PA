@@ -1,6 +1,13 @@
 package com.omega.ai
 
 import android.app.Activity
+import android.app.AlertDialog
+import android.content.ComponentName
+import android.provider.Settings
+import android.accessibilityservice.AccessibilityServiceInfo
+import android.view.accessibility.AccessibilityManager
+import com.omega.ai.accessibility.OmegaTouchService
+import com.omega.ai.accessibility.TouchBridge
 import android.content.Intent
 import android.graphics.Color
 import android.media.projection.MediaProjectionManager
@@ -21,6 +28,8 @@ import com.omega.core.release.Connection
 class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var button: Button
+    private lateinit var accessStatus: TextView
+    private lateinit var accessLink: TextView
     private val handler = Handler(Looper.getMainLooper())
     private var awaitingConsent = false
     private var launchMessage:String?=null
@@ -38,11 +47,34 @@ class MainActivity : Activity() {
         status = label("Sistema inactivo · sin adaptador de juego",16f,Color.WHITE).apply { setPadding(0,dp(24),0,dp(24)) }; root.addView(status)
         button = Button(this).apply { isAllCaps=false; textSize=18f; minHeight=dp(56); setOnClickListener { toggle() } }
         root.addView(button,LinearLayout.LayoutParams(-1,-2))
-        root.addView(label("v1.0.4 · Núcleo neuronal ampliado",12f,Color.LTGRAY).apply { setPadding(0,dp(16),0,0) })
+        accessStatus=label("Accesibilidad: comprobando",14f,Color.LTGRAY).apply{setPadding(0,dp(16),0,0)}
+        root.addView(accessStatus)
+        accessLink=label("Configurar accesibilidad (opcional)",15f,Color.rgb(144,217,235)).apply{
+            minHeight=dp(48);isClickable=true;isFocusable=true;setOnClickListener{showAccessSettings()}
+        }
+        root.addView(accessLink,LinearLayout.LayoutParams(-1,-2))
+        root.addView(label("v1.0.5 · Diagnóstico de accesibilidad",12f,Color.LTGRAY).apply { setPadding(0,dp(16),0,0) })
         setContentView(root); render()
     }
     private fun dp(v: Int) = (v*resources.displayMetrics.density+0.5f).toInt()
     private fun label(t:String,s:Float,c:Int) = TextView(this).apply { text=t; textSize=s; setTextColor(c); gravity=Gravity.CENTER }
+    private fun accessibilityEnabled():Boolean? = runCatching {
+        val manager=requireNotNull(getSystemService(AccessibilityManager::class.java))
+        val expected=ComponentName(this,OmegaTouchService::class.java)
+        manager.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK).any {
+            val info=it.resolveInfo.serviceInfo
+            ComponentName(info.packageName,info.name)==expected
+        }
+    }.getOrNull()
+    private fun showAccessSettings(){
+        AlertDialog.Builder(this).setTitle("Accesibilidad de OMEGA")
+            .setMessage("Android permite a este servicio realizar gestos y consultar ventanas cuando existe un adaptador autorizado. En esta versión no controla Free Fire ni necesita el permiso para abrirlo. La activación es opcional y solo sirve para comprobar la conexión del servicio. Puedes desactivarlo en cualquier momento en Ajustes.")
+            .setNegativeButton("Cancelar",null)
+            .setPositiveButton("Abrir ajustes"){_,_->
+                try{startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))}
+                catch(e:Exception){launchMessage="No se pudieron abrir los ajustes de accesibilidad";render()}
+            }.show()
+    }
     private fun render() {
         var s=RuntimeSession.status()
         // Also show resource telemetry in the idle-core session, even without a game adapter.
@@ -60,6 +92,11 @@ class MainActivity : Activity() {
             status.text=launchMessage ?: if(FreeFireLauncher.available(this)) "Free Fire disponible · apertura desde OMEGA\nControl y aprendizaje en partida no habilitados" else "Free Fire no encontrado · instala el cliente oficial"
             button.text="ABRIR FREE FIRE"
         }else button.text=if(s.active) "DETENER IA" else "INICIAR IA"
+        val enabled=accessibilityEnabled()
+        val connected=TouchBridge.connected()
+        val armed=TouchBridge.isArmed()
+        accessStatus.text=when(enabled){true->"Accesibilidad: habilitada";false->"Accesibilidad: deshabilitada";null->"Accesibilidad: estado desconocido"}+" · "+(if(connected)"servicio conectado" else "servicio desconectado")+"\n"+(if(armed)"Transporte de prueba activo" else "Gestos inactivos")
+        accessLink.text=if(enabled==true)"Administrar accesibilidad" else "Configurar accesibilidad (opcional)"
         button.isEnabled=!awaitingConsent
     }
     private fun toggle() {
@@ -94,6 +131,7 @@ class MainActivity : Activity() {
         render()
     }
     override fun onSaveInstanceState(outState: Bundle) { outState.putBoolean("awaiting",awaitingConsent); super.onSaveInstanceState(outState) }
+    override fun onResume(){super.onResume();render()}
     override fun onStart() { super.onStart(); handler.post(tick) }
     override fun onStop() { handler.removeCallbacks(tick); if(!isChangingConfigurations && !awaitingConsent && !RuntimeSession.status().capturing && GameBinding.adapter==null) RuntimeSession.stop("left_app"); super.onStop() }
 }
