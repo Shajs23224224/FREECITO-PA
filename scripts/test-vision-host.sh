@@ -11,3 +11,6 @@ java -jar "$build/yolo-test.jar"
 
 kotlinc vision/src/main/java/com/omega/vision/ExactFrameCache.kt tests/ExactFrameCacheSmoke.kt -jvm-target 17 -include-runtime -d "$build/ocr-cache-test.jar"
 java -jar "$build/ocr-cache-test.jar"
+
+kotlinc vision/src/main/java/com/omega/vision/UniformMarginCrop.kt tests/UniformMarginCropSmoke.kt -jvm-target 17 -include-runtime -d "$build/ocr-crop-test.jar"
+java -jar "$build/ocr-crop-test.jar"

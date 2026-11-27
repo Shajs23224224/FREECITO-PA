@@ -184,19 +184,21 @@ class OmegaEmulatorTest : Instrumentation() {
                 val px=IntArray(w*h);b.getPixels(px,0,w,0,0,w,h);b.recycle()
                 val buf=ByteBuffer.allocateDirect(w*h*4)
                 for(c in px){buf.put((c shr 16).toByte());buf.put((c shr 8).toByte());buf.put(c.toByte());buf.put((c ushr 24).toByte())};buf.flip()
-                val before=v.snapshot().ocrInferenceCount
-                v.offer(buf,w,h,w*4,4,SystemClock.elapsedRealtimeNanos())
+                val before=v.snapshot().ocrCompleted
+                val submitted=SystemClock.elapsedRealtimeNanos()
+                v.offer(buf,w,h,w*4,4,submitted)
                 val limit=SystemClock.elapsedRealtime()+30000
-                while(v.snapshot().ocrInferenceCount==before&&SystemClock.elapsedRealtime()<limit)SystemClock.sleep(100)
+                while(v.snapshot().ocrCompleted==before&&SystemClock.elapsedRealtime()<limit)SystemClock.sleep(100)
                 val after=v.snapshot()
-                check(after.ocrInferenceCount==before+1){"Missing full-frame inference for "+code}
+                check(after.ocrCompleted==before+1&&after.ocrStatus=="inference_ok"){"Missing OCR completion for "+code}
                 after.ocrInferenceMs?.let{dynamicTimes+=it}
-                val found=after.text?.value?.any{it.text.contains(code,true)}
-                if(found!=null)check(found){"Unexpected fresh text for "+code}
-                report("PERF DYNAMIC label="+code+" ms="+after.ocrInferenceMs+" freshContentMatch="+found)
+                val age=(SystemClock.elapsedRealtimeNanos()-submitted)/1_000_000L
+                val found=after.text?.takeIf{it.frameNs==submitted}?.value?.any{it.text.contains(code,true)}
+                if(found!=null)check(found){"Unexpected text for "+code}
+                report("PERF DYNAMIC label="+code+" ms="+after.ocrInferenceMs+" ageMs="+age+" contentMatch="+found+" fresh2500="+(found==true&&age<=2500)+" inputPixels="+after.ocrInputPixels+"/"+after.ocrSourcePixels)
                 SystemClock.sleep(1200)
             }
-            check(v.snapshot().ocrCacheHits==dynamicStart.ocrCacheHits){"Unexpected cache hit for changing content"}
+            check(v.snapshot().ocrCacheHits==dynamicStart.ocrCacheHits&&v.snapshot().ocrInferenceCount-dynamicStart.ocrInferenceCount==3L){"Unexpected cache or inference count for changing content"}
             report("PERF DYNAMIC model-only "+summary(dynamicTimes)+" cacheHits=0")
             // Verify resource policy with controlled inputs, not by overheating the emulator.
             val clean=com.omega.core.meta.Health(.3,false,0,30.0,80,false,false,25.0)
