@@ -60,19 +60,35 @@ object RuntimeSession {
             SessionDiagnostics.end("start_error:"+t.javaClass.simpleName);neuralCandidate?.close(); candidate?.close(); message = "No se pudo iniciar el núcleo"; Log.e("OMEGA", "start", t); false
         }
     }
+    private fun configureVision(){
+        val training=GameBinding.training!=null
+        val ready=GameBinding.accessibilityTarget()!=null
+        val cooling=budget.load.ordinal>=Load.LIMITED.ordinal
+        vision?.configureLoad(budget.visionMultiplier,budget.ocr&&!cooling,budget.depth&&!training,!cooling&&(!training||ready&&budget.load==Load.NORMAL),!cooling)
+    }
+    @Synchronized fun capturePaused()=budget.load.ordinal>=Load.LIMITED.ordinal
+    @Synchronized fun captureDelayMs()=when(budget.load){Load.NORMAL->800L;Load.ECONOMY->1000L;Load.LIMITED->3000L;Load.STOP->5000L}
     @Synchronized fun beginCapture(): Boolean {
         if (!GameBinding.canCapture() || !resourceHealthy() || engine?.observe() != true) return false
-        vision=VisionEngine(app).also{it.configureLoad(budget.visionMultiplier,budget.ocr,budget.depth&&GameBinding.training==null)}
-        capture = true; if(budget.commands)TouchBridge.arm(); message = "Observación experimental · v1.0.8"; return true
+        vision=VisionEngine(app);configureVision()
+        capture = true; if(budget.commands)TouchBridge.arm(); message = "Observación experimental · v1.0.9"; return true
     }
     @Synchronized fun submit(buffer: ByteBuffer, w: Int, h: Int, row: Int, pixel: Int, ts: Long): Boolean {
-        if(!capture||!GameBinding.canCapture()||!resourceHealthy())return false
+        if(!capture||!GameBinding.canCapture()||!resourceHealthy()||capturePaused())return false
         val now=SystemClock.elapsedRealtimeNanos()
         if(submittedAt>=0&&now-submittedAt<100_000_000L*budget.visionMultiplier)return false
         if(engine?.submit(buffer,w,h,row,pixel,ts)!=true){SessionDiagnostics.event("native","frame_rejected");return false}
         submittedAt=now
         vision?.offer(buffer,w,h,row,pixel,ts)
-        vision?.snapshot()?.let { SessionDiagnostics.event("vision","detector=${it.detectorStatus} ocr=${it.ocrStatus} hud=${it.hudStatus} candidates=${it.hud?.value?.circles?.size?:0}");GameBinding.ingest(it);if(budget.commands&&GameBinding.accessibilityTarget()!=null)TouchBridge.arm();neural?.offer(it) }
+        vision?.snapshot()?.let {
+            SessionDiagnostics.event("vision","ocr=${it.ocrStatus} done=${it.ocrCompleted} ms=${it.ocrMs} lines=${it.ocrLastCount} hud=${it.hudStatus} done=${it.hudCompleted} ms=${it.hudMs} candidates=${it.hudLastCount} fresh=${it.hud!=null}")
+            GameBinding.ingest(it)
+            val ready=GameBinding.accessibilityTarget()!=null
+            if(budget.commands&&ready)TouchBridge.arm() else TouchBridge.disarm()
+            if(GameBinding.training==null||budget.commands&&ready)neural?.offer(it)
+            else SessionDiagnostics.event("executive","waiting_visual_evidence_or_resource_budget")
+            configureVision()
+        }
         return true
     }
     /** Sample at most every two seconds. A critical reading is latched; the service closes projection. */
@@ -84,7 +100,8 @@ object RuntimeSession {
         val perf=neural?.performance()?:Performance(0,null,0.0)
         val reading=runCatching{requireNotNull(probe).sample()}.getOrNull()
         budget=if(reading!=null)governor.update(reading.health,perf) else governor.update(Health(.85,true,null,null,null,false,false,null),perf)
-        vision?.configureLoad(budget.visionMultiplier,budget.ocr,budget.depth&&GameBinding.training==null)
+        if(GameBinding.training!=null)budget=MetaGovernor.trainingBudget(budget,reading?.health)
+        configureVision()
         SessionDiagnostics.event("budget","${budget.load} commands=${budget.commands} ocr=${budget.ocr} heap=${reading?.health?.heapRatio} lowMemory=${reading?.health?.lowMemory} thermal=${reading?.health?.thermal}")
         neural?.configureBudget(budget)
         if(!budget.commands)TouchBridge.disarm() else if(capture)TouchBridge.arm()

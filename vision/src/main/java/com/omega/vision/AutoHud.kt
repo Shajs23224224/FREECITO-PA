@@ -17,21 +17,22 @@ object AutoHud {
         val minR=max(12,(h*.045f).roundToInt());val maxR=min(64,(h*.15f).roundToInt())
         val step=max(1,h/180)
         val result=mutableListOf<HudCircle>()
-        fun response(cx:Int,cy:Int,k:Ring):Int{
+        fun response(cx:Int,cy:Int,k:Ring,minimum:Int):Int{
             var count=0
             for(i in 0 until 16){
                 val m=luma[(cy+k.dy[i])*w+cx+k.dx[i]]
                 val a=luma[(cy+k.innerY[i])*w+cx+k.innerX[i]]
                 val b=luma[(cy+k.outerY[i])*w+cx+k.outerX[i]]
                 if((m-a>=23&&m-b>=23)||(a-m>=23&&b-m>=23))count++
+                if(count+15-i<minimum)return 0
             }
             return count
         }
         for(r in minR..maxR step 2){
             val outer=ring(r);val inner=listOf(.43f,.50f,.57f).map{ring(max(5,(r*it).roundToInt()))}
             for(y in r+4 until h-r-4 step step)for(x in r+4 until w-r-4 step step){
-                val a=response(x,y,outer);if(a<12)continue
-                val b=inner.maxOf{response(x,y,it)};if(b<11)continue
+                val a=response(x,y,outer,12);if(a<12)continue
+                val b=inner.maxOf{response(x,y,it,11)};if(b<11)continue
                 val score=(a+b)/32f
                 val c=HudCircle(x.toFloat()/w,y.toFloat()/h,r.toFloat()/h,r.toFloat()/w,score)
                 val duplicate=result.indexOfFirst{abs(it.x-c.x)<max(it.radiusX,c.radiusX)*.65f&&abs(it.y-c.y)<max(it.radiusY,c.radiusY)*.65f}

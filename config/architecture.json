@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "1.0.8",
+  "version": "1.0.9",
   "status": "compressed_modules_executable_untrained",
   "main": 824,
   "intermediate": 32,
@@ -289,10 +289,12 @@
     "policy_guard": "disabled or rollback count >=4 and greater than successful updates",
     "quantization": "preexisting quantized depth model retained; FP32 upstream unchanged",
     "device_benchmark": "pending",
-    "energy": "battery percentage/temperature and power saver only; no watts or joules"
+    "energy": "battery percentage/temperature and power saver only; no watts or joules",
+    "training_economy_commands": "permitted with fresh verified scope and acceptable thermal/battery/memory readings",
+    "training_severe": "pause work while retaining session, recover with hysteresis"
   },
   "release": {
-    "classification": "experimental automatic HUD with persistent diagnostics and lifecycle fixes",
+    "classification": "adaptive load and diagnostic improvements; movement not validated",
     "signature": "debug only; CI verifies",
     "abi": "arm64-v8a",
     "minimum_android_api": 26,
@@ -380,6 +382,7 @@
     "foreground_grace_ms": 3500,
     "max_capture_errors": 3,
     "training_depth_enabled": false,
-    "device_validation": false
+    "device_validation": false,
+    "vision_completion_counters": true
   }
 }
