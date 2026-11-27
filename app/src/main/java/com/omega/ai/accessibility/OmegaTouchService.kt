@@ -118,7 +118,7 @@ class OmegaTouchService:AccessibilityService(){
                         full=source?.copy(Bitmap.Config.ARGB_8888,false)?:error("bitmap_unavailable")
                         if(bounds.left<0||bounds.top<0||bounds.right>full.width||bounds.bottom>full.height)error("bounds_outside_capture")
                         crop=Bitmap.createBitmap(full,bounds.left,bounds.top,bounds.width(),bounds.height())
-                        val scale=minOf(1f,640f/max(crop.width,crop.height))
+                        val scale=minOf(1f,1024f/max(crop.width,crop.height))
                         val w=max(1,(crop.width*scale).toInt());val h=max(1,(crop.height*scale).toInt())
                         small=Bitmap.createScaledBitmap(crop,w,h,true)
                         val pixels=IntArray(w*h);small.getPixels(pixels,0,w,0,0,w,h)

@@ -4,7 +4,7 @@ import kotlin.math.*
 
 /** Geometry-only hypotheses, not trained game-icon classifications. All locations are normalized. */
 data class HudCircle(val x:Float,val y:Float,val radiusY:Float,val radiusX:Float,val score:Float)
-data class HudCandidates(val width:Int,val height:Int,val circles:List<HudCircle>)
+data class HudCandidates(val width:Int,val height:Int,val circles:List<HudCircle>,val icons:List<IconMatch> = emptyList())
 object AutoHud {
     private data class Ring(val dx:IntArray,val dy:IntArray,val innerX:IntArray,val innerY:IntArray,val outerX:IntArray,val outerY:IntArray)
     private fun ring(r:Int):Ring{

@@ -69,7 +69,7 @@ class VisionEngine(context: Context) : AutoCloseable {
     private val fast = Lane<List<Track>>(200_000_000L,1_500_000_000L)
     private val text = Lane<List<TextLine>>(1_000_000_000L,4_000_000_000L)
     private val depth = Lane<List<Float>>(5_000_000_000L,15_000_000_000L)
-    private val hud = Lane<HudCandidates>(900_000_000L,2_500_000_000L)
+    private val hud = Lane<HudCandidates>(450_000_000L,2_500_000_000L)
     private var lastFrame = -1L
     private var multiplier=1
     @Synchronized fun configureLoad(cadenceMultiplier:Int,ocrEnabled:Boolean,depthEnabled:Boolean,detectorEnabled:Boolean=true,hudEnabled:Boolean=true){
@@ -98,7 +98,7 @@ class VisionEngine(context: Context) : AutoCloseable {
         if(a) launch(fast,frameNs,now) { detect(pixels,w,h,frameNs) }
         if(b) launch(text,frameNs,now) { readText(pixels,w,h) }
         if(c) launch(depth,frameNs,now) { estimate(pixels,w,h) }
-        if(d) launch(hud,frameNs,now) { AutoHud.scan(pixels,w,h) }
+        if(d) launch(hud,frameNs,now) { HudCandidates(w,h,emptyList(),IconHud.scan(pixels,w,h)) }
     }
 
     private fun <T> launch(lane: Lane<T>,frameNs: Long,received: Long, work: ()->T?) {
@@ -112,7 +112,7 @@ class VisionEngine(context: Context) : AutoCloseable {
                     synchronized(this) {
                         if (!closed.get() && lane.enabled && generation==lane.generation) {
                             lane.completed++;lane.durationMs=elapsed
-                            lane.outputCount=when(value){is HudCandidates->value.circles.size;is List<*>->value.size;else->null}
+                            lane.outputCount=when(value){is HudCandidates->value.icons.size;is List<*>->value.size;else->null}
                             lane.result.set(value?.let { TimedObservation(frameNs,received,it) })
                             lane.status.set(if(value==null) "no_valid_output" else "inference_ok")
                         }
